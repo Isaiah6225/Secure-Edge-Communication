@@ -3,5 +3,6 @@ use crate::tcp::conn;
 pub mod tcp; 
 
 fn main() {
-   conn::tcp_listen();
+    println!("Running conn::tcp_listen function...");
+    conn::tcp_listen();
 }

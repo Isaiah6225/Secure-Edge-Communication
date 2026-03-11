@@ -1,6 +1,7 @@
 # will have compiled files and executables
-debug/
-target/
+/debug/
+/target/
+/.env 
 
 # Editor configuration
 .vscode/
