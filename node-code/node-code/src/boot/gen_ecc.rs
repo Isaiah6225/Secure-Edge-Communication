@@ -44,13 +44,13 @@ pub async fn priv_key(_trng_source: TrngSource<'static>) {
         },
     });
     
-    //set signing key, and verifyingkey
+    //set signing key, and verifying key
     let signing_key = SigningKey::random(&mut wrapper); 
     let serialized_skey = SigningKey::to_bytes(&signing_key);
-
+    
+    //serialize signing key and verifying key
     let verifying_key = VerifyingKey::from(&signing_key);
     let serialized_vkey = VerifyingKey::to_encoded_point(&verifying_key, true);
 
-    info!("Signing Key: {:?} and Verifying Key: {:?}", signing_key, verifying_key);
     info!("Serialized Signing Key: {:?} and Serilaized Verifying Key: {:?}", serialized_skey, serialized_vkey);
 }

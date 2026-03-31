@@ -10,13 +10,8 @@ use esp_hal::{
     timer::timg::TimerGroup,
     rng::TrngSource,
 };
-use crate::boot::{
-    read_id::read_mac,
-    gen_ecc::priv_key,
-};
+use enroll_device::enrollment;
 use log::info;
-
-pub mod boot;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -47,6 +42,6 @@ async fn main(spawner: Spawner) {
     let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
 
     // TODO: Spawn some tasks
-    spawner.spawn(read_mac()).ok();
-    spawner.spawn(priv_key(trng_source)).ok();
+    spawner.spawn(enroll_device::enroll()).ok();
+    //spawner.spawn(boot::priv_key(trng_source)).ok();
 }
