@@ -32,8 +32,7 @@ impl RngCoreOld for TrngWrapper {
 }
 impl CryptoRngOld for TrngWrapper {}
 
-#[embassy_executor::task]
-pub async fn priv_key(_trng_source: TrngSource<'static>) {
+pub fn gen_key_pair(_trng_source: TrngSource<'static>) {
     //set Trng and pass to wrapper 
     let trng = Trng::try_new();
     let mut wrapper = TrngWrapper(match trng {
@@ -53,4 +52,6 @@ pub async fn priv_key(_trng_source: TrngSource<'static>) {
     let serialized_vkey = VerifyingKey::to_encoded_point(&verifying_key, true);
 
     info!("Serialized Signing Key: {:?} and Serilaized Verifying Key: {:?}", serialized_skey, serialized_vkey);
+
+    serialized_vkey 
 }
