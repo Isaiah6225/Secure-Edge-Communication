@@ -4,6 +4,11 @@ use esp_hal::rng::{
 };
 use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
 use rand_core_new::RngCore as RngCoreNew;
+use core::{
+    fmt::Display,
+    fmt
+};
+
 
 // p256 and esphal both use rand core on different versions (esp_hal v0.9.5 and p256 v0.6.4)
 // creating wrapper to match version implmentations
@@ -28,13 +33,10 @@ impl RngCoreOld for TrngWrapper {
 }
 impl CryptoRngOld for TrngWrapper {}
 
-//VerifyingKey Encoded Point type simplified
-//type VerifyingKeyRet = sec1::point::EncodedPoint<UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>;
-
 //error enum
 #[derive(Debug)]
-enum NodeError {
-    Rng(TrngError), 
+pub enum NodeError {
+    Rng(TrngError),
 }
 
 impl From<TrngError> for NodeError {
@@ -44,10 +46,16 @@ impl From<TrngError> for NodeError {
 }
 
 //Packet Struct 
-pub struct SendPacketInital  {
-    pub serialized_vkey: f32,
+pub struct SendPacketInital {
+    pub serialized_vkey: [u8; 33],
     pub dev_mac_add: [u8; 6], 
     pub device_nonce: u32, 
+}
+
+impl Display for SendPacketInital {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "serialized_vkey: {:?}, dev_mac_add: {:?}, device_nonce: {}", self.serialized_vkey, self.dev_mac_add, self.device_nonce)
+    }
 }
 
 //Imports 

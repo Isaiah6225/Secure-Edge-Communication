@@ -1,3 +1,4 @@
+//generate device nonce using Trng from device
 use esp_hal::{
     rng::{Trng, TrngSource, TrngError}
 };
@@ -8,7 +9,7 @@ use crate::{
 }; 
 
 
-pub fn gen_nonce(_trng_source: TrngSource<'static>) -> Result<u32, NodeError>{
+pub fn gen_nonce(_trng_source: &TrngSource<'static>) -> Result<u32, NodeError>{
     let trng = Trng::try_new();
     
     let wrapper = TrngWrapper(match trng {
@@ -20,6 +21,5 @@ pub fn gen_nonce(_trng_source: TrngSource<'static>) -> Result<u32, NodeError>{
     });
 
     let nonce = wrapper.0.random();
-    info!("Node nonce {:?}", nonce);
     Ok(nonce)
 }

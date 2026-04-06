@@ -11,6 +11,7 @@ use esp_hal::{
     rng::TrngSource,
 };
 use node_code::enroll_device::enrollment;
+use node_code::boot::gen_ecc;
 use log::info;
 
 #[panic_handler]
@@ -41,7 +42,5 @@ async fn main(spawner: Spawner) {
     //set up TrngSource
     let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
 
-    // TODO: Spawn some tasks
     spawner.spawn(enrollment::enroll(trng_source)).ok();
-    //spawner.spawn(boot::priv_key(trng_source)).ok();
 }
