@@ -9,6 +9,13 @@ use core::{
     fmt
 };
 
+//states 
+pub enum GlobalState {
+    pub IsProvisioned,
+    pub StandardComm, 
+    pub Enrollment, 
+}
+
 
 // p256 and esphal both use rand core on different versions (esp_hal v0.9.5 and p256 v0.6.4)
 // creating wrapper to match version implmentations
