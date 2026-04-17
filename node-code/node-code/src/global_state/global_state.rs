@@ -1,14 +1,28 @@
 use crate::{
-    GlobalState
+    GlobalStates,
+    StorageManager
 };
+use esp_storage::FlashStorage;
+use log::info;
 
-pub async fn manage_global_state() {
-    let state = GlobalState::IsProvisioned;
+#[embassy_executor::task]
+pub async fn manage_global_state(manage_storage: StorageManager<FlashStorage<'static>>) {
+    let mut state = GlobalStates::IsProvisioned;
     loop {
         match state {
-            GlobalState::IsProvisioned => {
-
+            GlobalStates::IsProvisioned => {
+                info!("provisioned state");
+                state = GlobalStates::Enrollment;
             }
+
+            GlobalStates::Enrollment => {
+                info!("Enrollment state");
+                state = GlobalStates::StandardComm;
+            }
+            
+            GlobalStates::StandardComm => {
+                info!("Standard Communication state");
+            }            
         }
     }
 }

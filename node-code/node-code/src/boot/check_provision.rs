@@ -1,5 +1,6 @@
-use esp_storage::FlashStorage;
+//check if provisioned to server
+
 
 pub fn check_provision() -> bool {
-    
+   //  
 }

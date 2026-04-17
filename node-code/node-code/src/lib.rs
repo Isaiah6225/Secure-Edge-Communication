@@ -1,4 +1,8 @@
 #![no_std]
+use esp_nvs::{
+    Nvs,
+    platform::Platform,
+};
 use esp_hal::rng::{
     Trng, TrngError
 };
@@ -10,11 +14,24 @@ use core::{
 };
 
 //states 
-pub enum GlobalState {
-    pub IsProvisioned,
-    pub StandardComm, 
-    pub Enrollment, 
+pub enum GlobalStates {
+    IsProvisioned,
+    StandardComm, 
+    Enrollment, 
 }
+
+//wrappers
+//Wrapper for NVS storage
+pub struct StorageManager<T: Platform>{
+    pub handle: Nvs<T>, 
+} 
+
+impl<T: Platform> StorageManager<T> {
+    pub fn new(handle: Nvs<T>) -> Self {
+        Self { handle: handle } 
+    }
+}
+
 
 
 // p256 and esphal both use rand core on different versions (esp_hal v0.9.5 and p256 v0.6.4)
@@ -40,15 +57,24 @@ impl RngCoreOld for TrngWrapper {
 }
 impl CryptoRngOld for TrngWrapper {}
 
+//end wrappers 
+
 //error enum
 #[derive(Debug)]
 pub enum NodeError {
     Rng(TrngError),
+    NvsError(esp_nvs::error::Error), 
 }
 
 impl From<TrngError> for NodeError {
     fn from(error: TrngError) -> Self {
         NodeError::Rng(error)
+    }
+}
+
+impl From<esp_nvs::error::Error> for NodeError {
+    fn from(error: esp_nvs::error::Error) -> Self {
+        NodeError::NvsError(error)
     }
 }
 
@@ -69,4 +95,5 @@ impl Display for SendPacketInital {
 pub mod nonce;
 pub mod boot;
 pub mod enroll_device;
+pub mod global_state;
 
