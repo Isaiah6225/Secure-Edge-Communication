@@ -1,6 +1,8 @@
 #![no_std]
 use esp_nvs::{
     Nvs,
+    Get,
+    Key,
     platform::Platform,
 };
 use esp_hal::rng::{
@@ -12,6 +14,7 @@ use core::{
     fmt::Display,
     fmt
 };
+use log::info;
 
 //states 
 pub enum GlobalStates {
@@ -29,6 +32,14 @@ pub struct StorageManager<T: Platform>{
 impl<T: Platform> StorageManager<T> {
     pub fn new(handle: Nvs<T>) -> Self {
         Self { handle: handle } 
+    }
+
+    pub fn get_provision_flag(&mut self) ->  Result<i8, NodeError> {
+        let namespace = const {Key::from_str("pro_data")};
+        let key = const {Key::from_str("is_pro")}; 
+
+        let provision: i8 = self.handle.get(&namespace, &key)?;
+        Ok(provision)
     }
 }
 
