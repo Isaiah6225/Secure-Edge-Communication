@@ -1,7 +1,6 @@
 #![no_std]
 use esp_nvs::{
     Nvs,
-    Get,
     Key,
     platform::Platform,
 };
@@ -16,12 +15,7 @@ use core::{
 };
 use log::info;
 
-//states 
-pub enum GlobalStates {
-    IsProvisioned,
-    StandardComm, 
-    Enrollment, 
-}
+
 
 //wrappers
 //Wrapper for NVS storage
@@ -34,12 +28,21 @@ impl<T: Platform> StorageManager<T> {
         Self { handle: handle } 
     }
 
-    pub fn get_provision_flag(&mut self) ->  Result<i8, NodeError> {
+    pub fn get_provision_flag(&mut self) ->  Result<u8, NodeError> {
         let namespace = const {Key::from_str("pro_data")};
         let key = const {Key::from_str("is_pro")}; 
 
-        let provision: i8 = self.handle.get(&namespace, &key)?;
+        let provision: u8 = self.handle.get(&namespace, &key)?;
         Ok(provision)
+    }
+
+    pub fn set_provision_flag(&mut self) -> Result<(), NodeError> {
+        let namespace = const {Key::from_str("pro_data")};
+        let key = const {Key::from_str("is_pro")};
+        let value: u8 = 0;
+
+        self.handle.set(&namespace, &key, value)?;
+        Ok(())
     }
 }
 
@@ -69,6 +72,21 @@ impl RngCoreOld for TrngWrapper {
 impl CryptoRngOld for TrngWrapper {}
 
 //end wrappers 
+
+//enums
+//states 
+pub enum GlobalStates {
+    IsProvisioned,
+    StandardComm, 
+    Enrollment, 
+}
+
+//provision enum 
+pub enum ProvisionStatus {
+    Provisioned,
+    NotProvisioned,
+    NotSet, 
+}
 
 //error enum
 #[derive(Debug)]
