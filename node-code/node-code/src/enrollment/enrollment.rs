@@ -1,5 +1,5 @@
 use crate::{
-    enroll_device::format_data, 
+    enrollment::format_data, 
 };
 use esp_hal::rng::TrngSource;
 

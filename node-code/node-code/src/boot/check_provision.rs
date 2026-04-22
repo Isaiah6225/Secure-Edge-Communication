@@ -1,7 +1,7 @@
 //check if provisioned to server
-use crate::{
-    NodeError, 
-    ProvisionStatus
+use crate::common::{
+    error::NodeError, 
+    enums::ProvisionStatus
 };
 use log::info;
 

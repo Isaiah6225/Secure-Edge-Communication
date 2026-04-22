@@ -1,7 +1,7 @@
 use esp_nvs::Nvs;
 use esp_storage::FlashStorage;
 use crate::{
-    NodeError,
+    common::error::NodeError,
 };
 
 pub fn set_nvs_handle(storage: FlashStorage<'_>) -> Result<Nvs<FlashStorage<'_>>, NodeError> {

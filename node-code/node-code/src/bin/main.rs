@@ -11,10 +11,10 @@ use esp_hal::{
     rng::TrngSource,
 };
 use node_code::{
-    enroll_device::enrollment,
+    enrollment::enrollment,
     boot::create_nvs_handle,
     global_state::global_state,
-    StorageManager,
+    common::structs::StorageManager,
 };
 use esp_storage::FlashStorage;
 use log::info;

@@ -1,8 +1,13 @@
 use crate::{
-    GlobalStates,
-    ProvisionStatus,
-    StorageManager,
     boot::check_provision,
+    common::{
+        structs::StorageManager,
+        enums::{
+            GlobalStates,
+            ProvisionStatus,
+        }
+    },
+    
 };
 use esp_storage::FlashStorage;
 use log::info;
@@ -31,10 +36,16 @@ pub async fn manage_global_state(mut manage_storage: StorageManager<FlashStorage
 
                     ProvisionStatus::NotSet => {
                         info!("[Global State: IsProvisioned] provision flag not set setting to 0 moving to enrollment");
-                        //TODO need to handle the error here a bit better. It should replay the
-                        //'IsProvisioned' again. 
-                        manage_storage.set_provision_flag();
-                        state = GlobalStates::Enrollment;
+                        //replaying 'IsProvisioned' state in case the flag cannot be set. 
+                        match manage_storage.set_provision_flag() {
+                            Ok(()) => {
+                                state = GlobalStates::Enrollment;
+                            }, 
+
+                            Err(_) => {
+                                state = GlobalStates::IsProvisioned; 
+                            }
+                        }
                     }
                 }
             }

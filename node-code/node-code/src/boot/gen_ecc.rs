@@ -7,8 +7,8 @@ use esp_hal::{
 };
 use log::info;
 use crate::{
-    TrngWrapper, 
-    NodeError
+    common::structs::TrngWrapper, 
+    common::error::NodeError
 };
 
 

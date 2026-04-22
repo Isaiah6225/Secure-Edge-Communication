@@ -3,9 +3,9 @@ use esp_hal::{
     rng::{Trng, TrngSource, TrngError}
 };
 use log::info; 
-use crate::{
-    TrngWrapper,
-    NodeError
+use crate::common::{
+    structs::TrngWrapper,
+    error::NodeError
 }; 
 
 
