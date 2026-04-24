@@ -1,3 +1,4 @@
+use embassy_net::Stack;
 use esp_nvs::{
     Nvs,
     Key,
@@ -8,6 +9,10 @@ use core::{
     fmt
 };
 use esp_hal::rng::Trng;
+use esp_radio::wifi::{
+    ClientConfig,
+    WifiController,
+};
 use crate::common::error::NodeError;
 use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
 use rand_core_new::RngCore as RngCoreNew;
@@ -65,7 +70,30 @@ impl<T: Platform> StorageManager<T> {
     }
 }
 
+pub struct WifiManager{
+    pub wifi_con: WifiController<'static>,
+    //pub stack: &Stack <'static>,
+}
 
+impl WifiManager {
+    pub fn new(wifi_con: WifiController<'static> /*stack: &Stack <'static>*/) -> Self{
+        Self { wifi_con: wifi_con, /*stack: stack*/}
+    }
+    
+    /*
+    pub fn set_station_config() {
+        
+    } 
+
+    pub fn set_net_stack() {
+
+    }
+
+    pub fn send_data() {
+
+    }
+    */
+}
 
 
 //Enrollment Packets Struct 

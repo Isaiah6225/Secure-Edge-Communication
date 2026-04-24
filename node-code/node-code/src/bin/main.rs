@@ -9,12 +9,19 @@ use esp_hal::{
     clock::CpuClock,
     timer::timg::TimerGroup,
     rng::TrngSource,
+    rng::Rng,
+};
+use embassy_net::{
+    StackResources
 };
 use node_code::{
+    mk_static,
     enrollment::enrollment,
     boot::create_nvs_handle,
     global_state::global_state,
-    common::structs::StorageManager,
+    common::{
+        structs::StorageManager,
+    },
 };
 use esp_storage::FlashStorage;
 use log::info;
@@ -26,6 +33,7 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 
 extern crate alloc;
 esp_bootloader_esp_idf::esp_app_desc!();
+const REMOTE_IP: Option<&'static str> = option_env!("REMOTE_IP");
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) {
@@ -35,13 +43,33 @@ async fn main(spawner: Spawner) {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
     
-    //RAM for wifi TODO set up wifi 
+    //RAM for wifi 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 73744);
     esp_alloc::heap_allocator!(size: 64 * 1024);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0);
     info!("Embassy initialized!");
+    
+    //set up wifi resources
+    let radio_init = esp_radio::init().expect("Failed to initialize Wi-Fi controller");
+    let (mut wifi_controller, interfaces) =
+        esp_radio::wifi::new(&radio_init, peripherals.WIFI, Default::default()).unwrap();
+
+    //set wifi int
+    let wifi_int = interfaces.sta;
+
+    //set seed to prevent port collisions
+    let rng = Rng::new(); 
+    let seed = (rng.random() as u64) << 32 | rng.random() as u64;
+
+    /*init network stack 
+    let (stack, runner) = embassy_net::new(
+        wifi_int, 
+        wifi_config, 
+        mk_static!(StackResources<3>, StackResources::<3>::new()),
+        seed,
+    );*/
 
     //set up TrngSource
     let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);

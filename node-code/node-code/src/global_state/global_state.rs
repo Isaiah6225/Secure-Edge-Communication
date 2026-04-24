@@ -20,6 +20,7 @@ pub async fn manage_global_state(mut manage_storage: StorageManager<FlashStorage
             //provisioing check
             GlobalStates::IsProvisioned => {
                 info!("[Global State: IsProvisioned]");
+                //TODO should this be here? 
                 state = GlobalStates::Enrollment;
                 let get_pro_flag = manage_storage.get_provision_flag();
 
