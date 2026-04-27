@@ -3,3 +3,8 @@ pub enum GlobalStatesEnrollment {
     RespondInital, 
     FinalVerification,
 }
+
+pub enum EnrollmentWindowStatus {
+    OpenEnrollment,
+    ClosedEnrollment
+}
