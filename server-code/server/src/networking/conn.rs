@@ -1,9 +1,9 @@
 use std::{
     env,
     error::Error, 
-    net::{TcpListener, TcpStream},
     io::{BufReader, BufRead}
 };
+use tokio::net::{TcpListener, TcpStream};
 use dotenv::dotenv;
 
 //Listen for tcp connection on loop back addr. 

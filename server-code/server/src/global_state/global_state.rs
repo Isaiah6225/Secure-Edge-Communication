@@ -14,7 +14,7 @@ use crate::{
 use tokio::time::{Duration, sleep};
 
 
-pub fn manage_global_state() {
+pub async fn manage_global_state() {
     let mut state = GlobalStatesEnrollment::AwaitRequest;
     let (mut check_window, sleep_time) = enrollment_time::check_window();
 
@@ -28,6 +28,9 @@ pub fn manage_global_state() {
                 match state {
                     GlobalStatesEnrollment::AwaitRequest => {   
                         println!("[GlobalStatesEnrollment::AwaitRequest] awaiting request.");
+                        tokio::select!{
+
+                        };
                         if let Err(e) = conn::tcp_listen(){
                             println!("{}", e);
                         };
@@ -40,7 +43,7 @@ pub fn manage_global_state() {
 
             EnrollmentWindowStatus::ClosedEnrollment => {
                 println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] Enrollment window closed sleeping process until opened ");
-                sleep(Duration::from_secs(sleep_time));
+                sleep(Duration::from_secs(sleep_time)).await;
                 (check_window, _) = enrollment_time::check_window();
                 
             }

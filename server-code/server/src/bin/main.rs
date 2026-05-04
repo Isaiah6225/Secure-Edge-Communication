@@ -10,7 +10,15 @@ use tokio::{
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 3)]
 async fn main() {
-    task::spawn_blocking(move || {
-        global_state::manage_global_state(); 
-    });
+    let mut join_handles = vec![];
+    
+    for _ in 1..=3 {
+        join_handles.push(task::spawn(async move {
+            global_state::manage_global_state().await; 
+        }));
+    }
+
+    for join_handle in join_handles.drain(..) {
+        join_handle.await.unwrap();
+    }
 }
