@@ -13,6 +13,7 @@ pub fn tcp_listen() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(ip)?;
 
     for stream in listener.incoming() {
+        println!("Listening for connection");
         match stream {
             Ok(stream) => {
                 println!("Connection established"); 
