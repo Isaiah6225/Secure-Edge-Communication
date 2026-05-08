@@ -1,6 +1,5 @@
-use tokio::time::Duration;
-
-#[derive(Default, Debug, Clone)]
-pub struct TimeConfig {
-    pub timeout: u64, 
+pub struct EnrollmentReceiveInital {
+    pub serialized_vkey: [u8; 33],
+    pub dev_mac_add: [u8; 6], 
+    pub device_nonce: u32,
 }
