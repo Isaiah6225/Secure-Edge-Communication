@@ -1,62 +1,56 @@
 use server::{
-    global_state::global_state,
+    global_state::{global_state, manage_request},
     networking::conn,
-    enrollment_checks::enrollment_time,
-    common::enums::{
-        EnrollmentWindowStatus,
+    common::{
+        errors::ServerError,
+        enums::{
+            MainFlow
+        }
     }
 };
 use tokio::{
     task,
-    time::{Duration, sleep},
+    net::TcpListener
 };
+use dotenv::dotenv;
+use std::env;
 
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() {
+async fn main() -> Result<(), ServerError>{
     let mut join_handles = vec![];
-    let (mut check_window, sleep_time) = enrollment_time::check_window();
-
+    
+    //set tcp listener and extract IP from environment variables
+    dotenv().ok();
+    let ip = env::var("IP")?;
+    let listener = TcpListener::bind(ip).await?;
     
     join_handles.push(task::spawn(async move {
         loop {
-            match check_window {
-                EnrollmentWindowStatus::OpenEnrollment => {
-                    println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] Enrollment window open await request.");
-                    let sleep = sleep(Duration::from_secs(sleep_time));
+            match manage_request::manage_request(&listener).await {
+                Ok(stream) => {
+                    task::spawn(async move {
+                        match conn::handle_connection(stream) {
+                            MainFlow::Drop => {
+                                println!("Dropped connection");
+                            },
 
-                    tokio::pin!(sleep);
-                    tokio::select!{
-                        soc = conn::tcp_listen() => {
-                            println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] received request moving to respond inital");
-                            match soc {
-                                Ok(stream) => {
-                                    println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] Passing the stream to manage_global_state fn.");
-                                    task::spawn(global_state::manage_global_state(stream));
-                                },
-                                Err(_e) => println!("Error from stream"),
+                            MainFlow::Enroll(stream) => {
+                                task::spawn(global_state::manage_enrollment(stream));
                             }
                         }
-                        _ = &mut sleep => {
-                            println!("[GlobalStatesEnrollment::AwaitRequest] enrollment time closed moving to closed enrollment."); 
-                            check_window = EnrollmentWindowStatus::ClosedEnrollment;
-                        }
-                    }
+                    });
+                }
 
-                },
-
-                EnrollmentWindowStatus::ClosedEnrollment => {
-                    println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] Enrollment window closed sleeping process until opened ");
-
-                    sleep(Duration::from_secs(sleep_time)).await;
-                    (check_window, _) = enrollment_time::check_window();
-                },
+                Err(e) => {
+                    continue;
+                }
             }
-            
         }
     }));
 
     for join_handle in join_handles.drain(..) {
         join_handle.await.unwrap();
     }
+    Ok(())
 }

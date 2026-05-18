@@ -1,9 +1,9 @@
 use crate::{
-    common::enums::EnrollmentWindowStatus,
+    common::enums::TimeStatus
 };
 use chrono::{DateTime, Local};
 
-pub fn check_window() -> (EnrollmentWindowStatus, u64){
+pub fn check_window() -> (TimeStatus, u64){
     //get current local system time
     let dt: DateTime<Local> = Local::now();
     let time_formatted = format!("{}", dt.format("%M"));
@@ -14,13 +14,13 @@ pub fn check_window() -> (EnrollmentWindowStatus, u64){
 
     match current_minute {
         30_u64..=59_u64=> {
-            println!("Enrollment window is open where the minute is: {:?}", time_formatted);
-            return (EnrollmentWindowStatus::OpenEnrollment, seconds_to_sleep); 
+            println!("[enrollment_time::check_window] Enrollment window is open where the minute is: {:?}", time_formatted);
+            return (TimeStatus::Open, seconds_to_sleep); 
         },
 
         0_u64..=29_u64 => {  
-            println!("Enrollment window is closed where the minute is: {:?}", time_formatted);
-            return (EnrollmentWindowStatus::ClosedEnrollment, seconds_to_sleep);
+            println!("[enrollment_time::check_window] Enrollment window is closed where the minute is: {:?}", time_formatted);
+            return (TimeStatus::Closed, seconds_to_sleep);
         },
 
         _ => todo!(),
