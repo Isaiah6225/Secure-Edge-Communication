@@ -30,7 +30,7 @@ async fn main() -> Result<(), ServerError>{
             match manage_request::manage_request(&listener).await {
                 Ok(stream) => {
                     task::spawn(async move {
-                        match conn::handle_connection(stream) {
+                        match conn::handle_connection(stream).await {
                             MainFlow::Drop => {
                                 println!("Dropped connection");
                             },

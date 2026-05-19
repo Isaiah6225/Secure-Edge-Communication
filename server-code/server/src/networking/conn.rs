@@ -3,7 +3,8 @@ use tokio::{
         TcpListener,
         TcpStream,
     },
-    io
+    io,
+    time
 };
 
 use crate::common::{
@@ -31,10 +32,10 @@ pub async fn tcp_listen(listener: &TcpListener) -> Result<tokio::net::TcpStream,
 }
 
 //handle connection received connection 
-pub fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
+pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
     let mut buf = [0u8; 4096];
-    
-
+     
+    tcp_stream.readable().await;
     match tcp_stream.try_read(&mut buf) {
         Ok(0) => {
             println!("[networking::conn::handle_connection] 0 bytes returned");
@@ -50,8 +51,8 @@ pub fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
                     return MainFlow::Drop;
                 },
             };
-            println!("[networking::conn::handle_connection] string res: {:?}", string.split("\n"));
-            
+            let v: Vec<&str> = string.split("\n").collect();
+            println!("[networking::conn::handle_connection] string res: {:?}", v);
             return MainFlow::Enroll(tcp_stream);
         }
         Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
