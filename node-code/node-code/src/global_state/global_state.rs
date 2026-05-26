@@ -1,27 +1,39 @@
 use crate::{
     boot::check_provision,
     common::{
-        structs::StorageManager,
+        structs::{
+            StorageManager,
+            WifiManager,
+        },
         enums::{
             GlobalStates,
             ProvisionStatus,
+            WifiCommand,
         }
     },
     
 };
+use embassy_net::Stack;
 use esp_storage::FlashStorage;
 use log::info;
+use embassy_sync::{
+    channel::Sender,
+    blocking_mutex::raw::CriticalSectionRawMutex
+};
 
 #[embassy_executor::task]
-pub async fn manage_global_state(mut manage_storage: StorageManager<FlashStorage<'static>>) {
+pub async fn manage_global_state(
+    mut manage_storage: StorageManager<FlashStorage<'static>>, 
+    mut manage_wifi: WifiManager,
+    mut sender_handle: Sender<'static, CriticalSectionRawMutex, WifiCommand, 16>
+)
+{
     let mut state = GlobalStates::IsProvisioned;
     loop {
         match state {
             //provisioing check
             GlobalStates::IsProvisioned => {
                 info!("[Global State: IsProvisioned]");
-                //TODO should this be here? 
-                state = GlobalStates::Enrollment;
                 let get_pro_flag = manage_storage.get_provision_flag();
 
                 match check_provision(get_pro_flag) {

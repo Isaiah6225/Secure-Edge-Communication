@@ -1,4 +1,4 @@
-mpl //Generate ECC key pair.
+//Generate ECC key pair.
 use p256::{
     ecdsa::{SigningKey, VerifyingKey},
 };

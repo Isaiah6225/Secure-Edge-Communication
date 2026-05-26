@@ -71,6 +71,7 @@ p256 = {version = "0.13.2", default-features = false, features = ["ecdh", "ecdsa
 elliptic-curve = {version = "0.13.7", default-features = false, features = ["ecdh"]}
 esp-storage = "0.8.1"
 esp-nvs = {version = "0.4.0", default-features = false, features = ["esp32s3"]}
+embassy-sync = "0.8.0"
 
 
 [profile.dev]

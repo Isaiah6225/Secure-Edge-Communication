@@ -11,3 +11,10 @@ pub enum ProvisionStatus {
     NotProvisioned,
     NotSet, 
 }
+
+//channel communication
+pub enum WifiCommand {
+    SendEnrollment,
+    Connect, 
+    AwaitCommand,
+}

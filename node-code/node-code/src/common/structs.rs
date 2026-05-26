@@ -1,4 +1,7 @@
-use embassy_net::Stack;
+use embassy_net::{
+    Stack,
+    Runner
+};
 use esp_nvs::{
     Nvs,
     Key,
@@ -6,12 +9,11 @@ use esp_nvs::{
 };
 use core::{
     fmt::Display,
-    fmt
+    fmt,
 };
 use esp_hal::rng::Trng;
 use esp_radio::wifi::{
-    ClientConfig,
-    WifiController,
+    WifiDevice
 };
 use crate::common::error::NodeError;
 use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
@@ -70,21 +72,16 @@ impl<T: Platform> StorageManager<T> {
     }
 }
 
+//wifi functions and handle 
 pub struct WifiManager{
-    pub wifi_con: WifiController<'static>,
-    //pub stack: &Stack <'static>,
+    stack: Stack<'static>
 }
 
 impl WifiManager {
-    pub fn new(wifi_con: WifiController<'static> /*stack: &Stack <'static>*/) -> Self{
-        Self { wifi_con: wifi_con, /*stack: stack*/}
+    pub fn new(stack: Stack<'static>) -> Self{
+        Self { stack: stack }
     }
     
-    /*
-    pub fn set_station_config() {
-        
-    } 
-
     pub fn set_net_stack() {
 
     }
@@ -92,7 +89,12 @@ impl WifiManager {
     pub fn send_data() {
 
     }
-    */
+    
+}
+
+#[embassy_executor::task]
+pub async fn net_task(mut runner: Runner<'static, WifiDevice<'static>>) {
+    runner.run().await;
 }
 
 

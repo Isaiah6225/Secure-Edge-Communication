@@ -5,12 +5,20 @@
 )]
 
 use embassy_executor::Spawner;
+use embassy_sync::{
+    channel::Channel,
+    blocking_mutex::raw::CriticalSectionRawMutex,
+};
 use esp_hal::{
     clock::CpuClock,
     timer::timg::TimerGroup,
     rng::TrngSource,
     rng::Rng,
 };
+use esp_radio::{
+    Controller
+};
+use esp_storage::FlashStorage;
 use embassy_net::{
     StackResources
 };
@@ -20,10 +28,11 @@ use node_code::{
     boot::create_nvs_handle,
     global_state::global_state,
     common::{
-        structs::StorageManager,
+        structs::{StorageManager, WifiManager},
+        enums::WifiCommand,
+        structs
     },
 };
-use esp_storage::FlashStorage;
 use log::info;
 
 #[panic_handler]
@@ -34,6 +43,7 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 extern crate alloc;
 esp_bootloader_esp_idf::esp_app_desc!();
 const REMOTE_IP: Option<&'static str> = option_env!("REMOTE_IP");
+static CHANNEL: Channel<CriticalSectionRawMutex, WifiCommand, 16> = Channel::new();
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) {
@@ -52,7 +62,8 @@ async fn main(spawner: Spawner) {
     info!("Embassy initialized!");
     
     //set up wifi resources
-    let radio_init = esp_radio::init().expect("Failed to initialize Wi-Fi controller");
+    //let radio_init = esp_radio::init().expect("Failed to initialize Wi-Fi controller");
+    let radio_init = &*mk_static!(Controller<'static>, esp_radio::init().unwrap());
     let (mut wifi_controller, interfaces) =
         esp_radio::wifi::new(&radio_init, peripherals.WIFI, Default::default()).unwrap();
 
@@ -63,13 +74,19 @@ async fn main(spawner: Spawner) {
     let rng = Rng::new(); 
     let seed = (rng.random() as u64) << 32 | rng.random() as u64;
 
-    /*init network stack 
+    //config
+    //let pass: &'static str = env!("wifi_password");
+    let config = embassy_net::Config::dhcpv4(Default::default()); 
+
     let (stack, runner) = embassy_net::new(
         wifi_int, 
-        wifi_config, 
+        config,
         mk_static!(StackResources<3>, StackResources::<3>::new()),
         seed,
-    );*/
+    );
+
+    //set wifi manager 
+    let wifi_manager = WifiManager::new(stack);
 
     //set up TrngSource
     let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
@@ -80,5 +97,6 @@ async fn main(spawner: Spawner) {
     let storage_manager = StorageManager::new(nvs);
 
     //spawner.spawn(enrollment::enroll(trng_source)).ok();
-    spawner.spawn(global_state::manage_global_state(storage_manager)).ok();
+    spawner.spawn(structs::net_task(runner)).ok();
+    spawner.spawn(global_state::manage_global_state(storage_manager, wifi_manager, CHANNEL.sender())).ok();
 }
