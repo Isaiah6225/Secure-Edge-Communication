@@ -2,10 +2,17 @@ use embassy_net::{
     Stack,
     Runner
 };
+use embassy_sync::{
+    channel::Sender,
+    blocking_mutex::raw::CriticalSectionRawMutex
+};
 use esp_nvs::{
     Nvs,
     Key,
     platform::Platform,
+};
+use esp_hal::{
+    rng::TrngSource,
 };
 use core::{
     fmt::Display,
@@ -15,7 +22,13 @@ use esp_hal::rng::Trng;
 use esp_radio::wifi::{
     WifiDevice
 };
-use crate::common::error::NodeError;
+use crate::{
+    enrollment::format_data,
+    common::{
+        error::NodeError,
+        enums::{EnrollmentSteps, WifiCommand},
+    },
+};
 use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
 use rand_core_new::RngCore as RngCoreNew;
 use log::info;
@@ -74,22 +87,24 @@ impl<T: Platform> StorageManager<T> {
 
 //wifi functions and handle 
 pub struct WifiManager{
-    stack: Stack<'static>
+    stack: Stack<'static>,
+    sender: Sender<'static, CriticalSectionRawMutex, WifiCommand, 16>, 
+    trng_source: TrngSource<'static>, 
 }
 
 impl WifiManager {
-    pub fn new(stack: Stack<'static>) -> Self{
-        Self { stack: stack }
+    pub fn new(
+        stack: Stack<'static>, 
+        sender: Sender<'static, CriticalSectionRawMutex, WifiCommand, 16>, 
+        trng_source: TrngSource<'static> 
+    ) -> Self {
+        Self { stack: stack, sender: sender, trng_source: trng_source }
     }
     
-    pub fn set_net_stack() {
-
+    pub fn send_enrollment(&self, enrollment_steps: EnrollmentSteps) {
+        let command = format_data::format_enrollment(&self.trng_source, enrollment_steps);
+        &self.sender.send(command);
     }
-
-    pub fn send_data() {
-
-    }
-    
 }
 
 #[embassy_executor::task]
@@ -99,6 +114,7 @@ pub async fn net_task(mut runner: Runner<'static, WifiDevice<'static>>) {
 
 
 //Enrollment Packets Struct 
+#[derive(Debug)]
 pub struct SendPacketInitalEnrl {
     pub serialized_vkey: [u8; 33],
     pub dev_mac_add: [u8; 6], 

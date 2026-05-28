@@ -1,3 +1,4 @@
+use crate::common::structs::SendPacketInitalEnrl;
 //states 
 pub enum GlobalStates {
     IsProvisioned,
@@ -12,9 +13,16 @@ pub enum ProvisionStatus {
     NotSet, 
 }
 
+//enrollment sub steps
+pub enum EnrollmentSteps {
+    Initial,
+    FinalVerification
+}
+
 //channel communication
+#[derive(Debug)]
 pub enum WifiCommand {
-    SendEnrollment,
+    SendEnrlInitial(SendPacketInitalEnrl),
     Connect, 
     AwaitCommand,
 }

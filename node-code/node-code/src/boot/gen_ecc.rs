@@ -13,20 +13,24 @@ use crate::{
 
 
 
-pub fn gen_key_pair(_trng_source: &TrngSource<'static>) -> Result<[u8; 33], NodeError>{
+pub fn gen_key_pair(_trng_source: &TrngSource<'static>) -> [u8; 33] {
     //set Trng and pass to wrapper 
-    let trng = Trng::try_new();
+    let mut trng = Trng::try_new().unwrap();
     let mut vkey_output = [0u8; 33];
+    /*
     let mut wrapper = TrngWrapper(match trng {
         Ok(trng) => trng, 
         Err(e) => {
             info!("{:?}", e);
+            //throwing the error should be good here but need to think about it further. 
+            //the trng source is set so it should never throw an error here.
             return Err(NodeError::Rng(TrngError::TrngSourceNotEnabled))
         },
     });
+    */
     
     //set signing key, and verifying key
-    let signing_key = SigningKey::random(&mut wrapper); 
+    let signing_key = SigningKey::random(&mut trng); 
     let _serialized_skey = SigningKey::to_bytes(&signing_key);
 
     //serialize signing key and verifying key
@@ -37,5 +41,5 @@ pub fn gen_key_pair(_trng_source: &TrngSource<'static>) -> Result<[u8; 33], Node
     vkey_output.copy_from_slice(serialized_vkey_bytes);
 
     //info!("Serialized Signing Key: {:?} and Serilaized Verifying Key: {:?}", serialized_skey, serialized_vkey_byte_arr);
-    Ok(vkey_output)
+    vkey_output
 }

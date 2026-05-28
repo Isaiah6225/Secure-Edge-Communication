@@ -9,6 +9,7 @@ use crate::{
             GlobalStates,
             ProvisionStatus,
             WifiCommand,
+            EnrollmentSteps
         }
     },
     
@@ -16,16 +17,13 @@ use crate::{
 use embassy_net::Stack;
 use esp_storage::FlashStorage;
 use log::info;
-use embassy_sync::{
-    channel::Sender,
-    blocking_mutex::raw::CriticalSectionRawMutex
-};
+
 
 #[embassy_executor::task]
 pub async fn manage_global_state(
     mut manage_storage: StorageManager<FlashStorage<'static>>, 
     mut manage_wifi: WifiManager,
-    mut sender_handle: Sender<'static, CriticalSectionRawMutex, WifiCommand, 16>
+    //mut sender_handle: Sender<'static, CriticalSectionRawMutex, WifiCommand, 16>
 )
 {
     let mut state = GlobalStates::IsProvisioned;
@@ -65,8 +63,19 @@ pub async fn manage_global_state(
             
             //enrollment states
             GlobalStates::Enrollment => {
-                info!("[Global State: Enrollment]");
-                state = GlobalStates::StandardComm;
+                info!("[Global State: Enrollment] moving to enrollment steps");
+
+                let mut enrollment_steps = EnrollmentSteps::Initial; 
+                match enrollment_steps {
+                    EnrollmentSteps::Initial => {
+                        manage_wifi.send_enrollment(enrollment_steps);
+                        enrollment_steps = EnrollmentSteps::FinalVerification;
+                    }, 
+                    
+                    EnrollmentSteps::FinalVerification => {
+                        state = GlobalStates::StandardComm;
+                    }
+                } 
             }
             
             //standard communication state

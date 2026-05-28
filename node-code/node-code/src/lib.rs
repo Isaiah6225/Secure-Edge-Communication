@@ -7,4 +7,4 @@ pub mod common;
 pub mod boot;
 pub mod enrollment;
 pub mod global_state;
-
+pub mod wifi_task;

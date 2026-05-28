@@ -9,17 +9,8 @@ use crate::common::{
 }; 
 
 
-pub fn gen_nonce(_trng_source: &TrngSource<'static>) -> Result<u32, NodeError>{
-    let trng = Trng::try_new();
-    
-    let wrapper = TrngWrapper(match trng {
-        Ok(trng) => trng, 
-        Err(e) => {
-            info!("{:?}", e);
-            return Err(NodeError::Rng(TrngError::TrngSourceNotEnabled));
-        }
-    });
-
-    let nonce = wrapper.0.random();
-    Ok(nonce)
+pub fn gen_nonce(trng_source: &TrngSource<'static>) -> u32{
+    let trng = Trng::try_new().unwrap();
+    let nonce = trng.random();
+    nonce
 }

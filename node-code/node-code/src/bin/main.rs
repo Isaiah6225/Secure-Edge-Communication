@@ -32,6 +32,7 @@ use node_code::{
         enums::WifiCommand,
         structs
     },
+    wifi_task::wifi_task,
 };
 use log::info;
 
@@ -85,11 +86,11 @@ async fn main(spawner: Spawner) {
         seed,
     );
 
-    //set wifi manager 
-    let wifi_manager = WifiManager::new(stack);
-
     //set up TrngSource
     let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
+
+    //set wifi manager 
+    let wifi_manager = WifiManager::new(stack, CHANNEL.sender(), trng_source);
 
     //set up NVS partition and handle
     let storage = FlashStorage::new(peripherals.FLASH); 
@@ -98,5 +99,6 @@ async fn main(spawner: Spawner) {
 
     //spawner.spawn(enrollment::enroll(trng_source)).ok();
     spawner.spawn(structs::net_task(runner)).ok();
-    spawner.spawn(global_state::manage_global_state(storage_manager, wifi_manager, CHANNEL.sender())).ok();
+    spawner.spawn(wifi_task::wifi_task(wifi_controller, CHANNEL.receiver())).ok();
+    spawner.spawn(global_state::manage_global_state(storage_manager, wifi_manager)).ok();
 }
