@@ -3,18 +3,16 @@ use crate::{
     common::{
         structs::{
             StorageManager,
-            WifiManager,
+            GSCManager
         },
         enums::{
             GlobalStates,
             ProvisionStatus,
-            WifiCommand,
-            EnrollmentSteps
+            EnrollmentSteps, 
         }
     },
     
 };
-use embassy_net::Stack;
 use esp_storage::FlashStorage;
 use log::info;
 
@@ -22,11 +20,12 @@ use log::info;
 #[embassy_executor::task]
 pub async fn manage_global_state(
     mut manage_storage: StorageManager<FlashStorage<'static>>, 
-    mut manage_wifi: WifiManager,
-    //mut sender_handle: Sender<'static, CriticalSectionRawMutex, WifiCommand, 16>
+    gsc_manager: GSCManager,
 )
 {
     let mut state = GlobalStates::IsProvisioned;
+    let mut enrollment_steps = EnrollmentSteps::Initial; 
+
     loop {
         match state {
             //provisioing check
@@ -64,15 +63,15 @@ pub async fn manage_global_state(
             //enrollment states
             GlobalStates::Enrollment => {
                 info!("[Global State: Enrollment] moving to enrollment steps");
-
-                let mut enrollment_steps = EnrollmentSteps::Initial; 
                 match enrollment_steps {
                     EnrollmentSteps::Initial => {
-                        manage_wifi.send_enrollment(enrollment_steps);
+                        info!("[Global State: EnrollmentSteps::Initial] moving to EnrollmentSteps::Initial");
+                        gsc_manager.send_enrollment(enrollment_steps).await;
                         enrollment_steps = EnrollmentSteps::FinalVerification;
                     }, 
                     
                     EnrollmentSteps::FinalVerification => {
+                        info!("[Global State: EnrollmentSteps::FinalVerification] moving to EnrollmentSteps::FinalVerification");
                         state = GlobalStates::StandardComm;
                     }
                 } 

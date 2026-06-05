@@ -3,9 +3,8 @@
 use crate::{
     nonce::gen_nonce,
     common::{
-        structs::SendPacketInitalEnrl,
-        error::NodeError,
-        enums::WifiCommand,
+        structs::SendPacketInitialEnrl,
+        enums::WifiData,
     },
     boot::{
         gen_ecc,
@@ -15,22 +14,21 @@ use crate::{
         EnrollmentSteps,
     }
 };
-use esp_hal::rng::TrngSource;
 use log::info;
 
 
-pub fn format_enrollment(trng_source: &TrngSource<'static>, enrollment_steps: EnrollmentSteps) -> WifiCommand {
+pub fn format_enrollment(enrollment_steps: &EnrollmentSteps) -> WifiData {
     match enrollment_steps {
         EnrollmentSteps::Initial => {
             //get values for packet struct
             let mac = read_id::read_mac();
-            let sv_key_bytes = gen_ecc::gen_key_pair(&trng_source);
-            let nonce =  gen_nonce::gen_nonce(&trng_source);
+            let sv_key_bytes = gen_ecc::gen_key_pair();
+            let nonce =  gen_nonce::gen_nonce();
 
-            let spi = SendPacketInitalEnrl {dev_mac_add: mac, serialized_vkey:sv_key_bytes, device_nonce: nonce};
-            info!("{}", spi);
+            let spi = SendPacketInitialEnrl {dev_mac_add: mac, serialized_vkey:sv_key_bytes, device_nonce: nonce};
+            info!("[format_enrollment] initial packet: {}", spi);
 
-            return WifiCommand::SendEnrlInitial(SendPacketInitalEnrl { dev_mac_add: mac, serialized_vkey: sv_key_bytes, device_nonce: nonce})
+            return WifiData::SendEnrlInitial(SendPacketInitialEnrl { dev_mac_add: mac, serialized_vkey: sv_key_bytes, device_nonce: nonce})
         },
 
         EnrollmentSteps::FinalVerification => todo!(),

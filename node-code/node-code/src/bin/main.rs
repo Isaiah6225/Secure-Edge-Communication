@@ -24,12 +24,11 @@ use embassy_net::{
 };
 use node_code::{
     mk_static,
-    enrollment::enrollment,
     boot::create_nvs_handle,
     global_state::global_state,
     common::{
-        structs::{StorageManager, WifiManager},
-        enums::WifiCommand,
+        structs::{StorageManager, WifiManager, GSCManager},
+        enums::EnrollmentSteps,
         structs
     },
     wifi_task::wifi_task,
@@ -44,7 +43,9 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 extern crate alloc;
 esp_bootloader_esp_idf::esp_app_desc!();
 const REMOTE_IP: Option<&'static str> = option_env!("REMOTE_IP");
-static CHANNEL: Channel<CriticalSectionRawMutex, WifiCommand, 16> = Channel::new();
+static GSC: Channel<CriticalSectionRawMutex, EnrollmentSteps, 16> = Channel::new();
+static WTC: Channel<CriticalSectionRawMutex, EnrollmentSteps, 16> = Channel::new();
+
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) {
@@ -65,7 +66,7 @@ async fn main(spawner: Spawner) {
     //set up wifi resources
     //let radio_init = esp_radio::init().expect("Failed to initialize Wi-Fi controller");
     let radio_init = &*mk_static!(Controller<'static>, esp_radio::init().unwrap());
-    let (mut wifi_controller, interfaces) =
+    let (wifi_controller, interfaces) =
         esp_radio::wifi::new(&radio_init, peripherals.WIFI, Default::default()).unwrap();
 
     //set wifi int
@@ -90,15 +91,15 @@ async fn main(spawner: Spawner) {
     let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
 
     //set wifi manager 
-    let wifi_manager = WifiManager::new(stack, CHANNEL.sender(), trng_source);
+    let wifi_manager = WifiManager::new(stack, trng_source);
+    let gsc_manager = GSCManager::new(GSC.sender(), WTC.receiver());
 
     //set up NVS partition and handle
     let storage = FlashStorage::new(peripherals.FLASH); 
     let nvs = create_nvs_handle::set_nvs_handle(storage).expect("NVS failed setup. Panicking as program requires NVS to be set.");
     let storage_manager = StorageManager::new(nvs);
 
-    //spawner.spawn(enrollment::enroll(trng_source)).ok();
+    spawner.spawn(wifi_task::wifi_task(wifi_controller, wifi_manager, GSC.receiver(), WTC.sender())).ok();
     spawner.spawn(structs::net_task(runner)).ok();
-    spawner.spawn(wifi_task::wifi_task(wifi_controller, CHANNEL.receiver())).ok();
-    spawner.spawn(global_state::manage_global_state(storage_manager, wifi_manager)).ok();
+    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager)).ok();
 }

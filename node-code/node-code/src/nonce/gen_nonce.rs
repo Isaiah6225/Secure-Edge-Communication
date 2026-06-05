@@ -1,15 +1,10 @@
 //generate device nonce using Trng from device
 use esp_hal::{
-    rng::{Trng, TrngSource, TrngError}
+    rng::Trng
 };
-use log::info; 
-use crate::common::{
-    structs::TrngWrapper,
-    error::NodeError
-}; 
 
-
-pub fn gen_nonce(trng_source: &TrngSource<'static>) -> u32{
+pub fn gen_nonce() -> u32{
+    //unwrap is safe here because trng source is set in main
     let trng = Trng::try_new().unwrap();
     let nonce = trng.random();
     nonce

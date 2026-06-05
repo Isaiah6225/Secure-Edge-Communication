@@ -3,18 +3,11 @@ use p256::{
     ecdsa::{SigningKey, VerifyingKey},
 };
 use esp_hal::{
-    rng::{Trng, TrngSource, TrngError}
-};
-use log::info;
-use crate::{
-    common::structs::TrngWrapper, 
-    common::error::NodeError
+    rng::Trng
 };
 
-
-
-pub fn gen_key_pair(_trng_source: &TrngSource<'static>) -> [u8; 33] {
-    //set Trng and pass to wrapper 
+pub fn gen_key_pair() -> [u8; 33] {
+    //unwrap is safe here because trng source is set in main
     let mut trng = Trng::try_new().unwrap();
     let mut vkey_output = [0u8; 33];
     /*

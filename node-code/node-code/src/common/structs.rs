@@ -3,9 +3,11 @@ use embassy_net::{
     Runner
 };
 use embassy_sync::{
-    channel::Sender,
+    channel::{Sender, Receiver},
     blocking_mutex::raw::CriticalSectionRawMutex
 };
+use embassy_time::{Duration, Timer};
+use embassy_net::{tcp::TcpSocket};
 use esp_nvs::{
     Nvs,
     Key,
@@ -26,7 +28,7 @@ use crate::{
     enrollment::format_data,
     common::{
         error::NodeError,
-        enums::{EnrollmentSteps, WifiCommand},
+        enums::{EnrollmentSteps, WifiData},
     },
 };
 use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
@@ -87,23 +89,69 @@ impl<T: Platform> StorageManager<T> {
 
 //wifi functions and handle 
 pub struct WifiManager{
-    stack: Stack<'static>,
-    sender: Sender<'static, CriticalSectionRawMutex, WifiCommand, 16>, 
+    pub stack: Stack<'static>,
     trng_source: TrngSource<'static>, 
 }
 
 impl WifiManager {
     pub fn new(
         stack: Stack<'static>, 
-        sender: Sender<'static, CriticalSectionRawMutex, WifiCommand, 16>, 
         trng_source: TrngSource<'static> 
     ) -> Self {
-        Self { stack: stack, sender: sender, trng_source: trng_source }
+        Self { stack: stack, trng_source: trng_source }
     }
-    
-    pub fn send_enrollment(&self, enrollment_steps: EnrollmentSteps) {
-        let command = format_data::format_enrollment(&self.trng_source, enrollment_steps);
-        &self.sender.send(command);
+    /*
+    pub fn new_socket(&self,  rx_buffer: &mut [u8], tx_buffer: &mut [u8]) -> TcpSocket {
+        let mut socket = TcpSocket::new(self.stack, rx_buffer, tx_buffer);
+        socket
+    }
+    */
+
+
+    pub fn gen_enrollment(&self, enrollment_steps: &EnrollmentSteps) -> WifiData {
+        let command = format_data::format_enrollment(enrollment_steps);
+        info!("[WifiManager::gen_enrollment] generated enrollment packet and returning it.");
+        command 
+    }
+
+    pub async fn check_stack(&self) {
+        info!("[WifiManager::check_stack] checking to see if the stack is up.");
+        loop {
+            //check if a connection's been made on the link layer 
+            if self.stack.is_link_up() {
+                break;
+            }
+            Timer::after(Duration::from_millis(500)).await;
+        }
+    }
+}
+
+pub struct GSCManager{
+    gsc_sender: Sender<'static, CriticalSectionRawMutex, EnrollmentSteps, 16>,
+    gsc_receiver: Receiver<'static, CriticalSectionRawMutex, EnrollmentSteps, 16>,
+}
+
+impl GSCManager {
+    pub fn new(
+        gsc_sender: Sender<'static, CriticalSectionRawMutex, EnrollmentSteps, 16>,
+        gsc_receiver: Receiver<'static, CriticalSectionRawMutex, EnrollmentSteps, 16>, 
+    ) -> Self {
+        Self { gsc_sender: gsc_sender, gsc_receiver: gsc_receiver }
+    }
+
+    pub async fn send_enrollment(&self, enrollment_steps: EnrollmentSteps) {
+        info!("[GSCManager::send_enrollment]");
+        match enrollment_steps {
+            EnrollmentSteps::Initial => {
+                info!("[GSCManager::send_enrollment] sending INITIAL ENROLLMENT request to wifi_task.");
+                self.gsc_sender.send(EnrollmentSteps::Initial).await;
+            }, 
+
+            EnrollmentSteps::FinalVerification => {
+                info!("[GSCManager::send_enrollment] sending VERIFICATION ENROLLMENT request to wifi_task.");
+                self.gsc_sender.send(EnrollmentSteps::FinalVerification).await;
+            }
+        }
     }
 }
 
@@ -115,13 +163,13 @@ pub async fn net_task(mut runner: Runner<'static, WifiDevice<'static>>) {
 
 //Enrollment Packets Struct 
 #[derive(Debug)]
-pub struct SendPacketInitalEnrl {
+pub struct SendPacketInitialEnrl {
     pub serialized_vkey: [u8; 33],
     pub dev_mac_add: [u8; 6], 
     pub device_nonce: u32, 
 }
 
-impl Display for SendPacketInitalEnrl {
+impl Display for SendPacketInitialEnrl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "serialized_vkey: {:?}, dev_mac_add: {:?}, device_nonce: {}", self.serialized_vkey, self.dev_mac_add, self.device_nonce)
     }

@@ -1,5 +1,5 @@
 use esp_hal::rng::{
-    Trng, TrngError
+    TrngError
 };
 
 
