@@ -7,6 +7,7 @@
 use embassy_executor::Spawner;
 use embassy_sync::{
     channel::Channel,
+    watch::Watch,
     blocking_mutex::raw::CriticalSectionRawMutex,
 };
 use esp_hal::{
@@ -28,10 +29,10 @@ use node_code::{
     global_state::global_state,
     common::{
         structs::{StorageManager, WifiManager, GSCManager},
-        enums::EnrollmentSteps,
+        enums::{EnrollmentSteps, WifiConfigStatus},
         structs
     },
-    wifi_task::wifi_task,
+    wifi_task::{wifi_task, wifi_config},
 };
 use log::info;
 
@@ -42,9 +43,13 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 
 extern crate alloc;
 esp_bootloader_esp_idf::esp_app_desc!();
+const WIFI_PASSWORD: &'static str = env!("WIFI_PASSWORD");
 const REMOTE_IP: Option<&'static str> = option_env!("REMOTE_IP");
+
 static GSC: Channel<CriticalSectionRawMutex, EnrollmentSteps, 16> = Channel::new();
 static WTC: Channel<CriticalSectionRawMutex, EnrollmentSteps, 16> = Channel::new();
+static WC: Watch<CriticalSectionRawMutex, WifiConfigStatus, 1> = Watch::new();
+
 
 
 #[esp_rtos::main]
@@ -99,7 +104,11 @@ async fn main(spawner: Spawner) {
     let nvs = create_nvs_handle::set_nvs_handle(storage).expect("NVS failed setup. Panicking as program requires NVS to be set.");
     let storage_manager = StorageManager::new(nvs);
 
-    spawner.spawn(wifi_task::wifi_task(wifi_controller, wifi_manager, GSC.receiver(), WTC.sender())).ok();
+    let mut rcv0 = WC.receiver().unwrap();
+    let mut sen0 = WC.sender();
+
+    spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0)).ok();
+    spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0)).ok();
     spawner.spawn(structs::net_task(runner)).ok();
     spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager)).ok();
 }

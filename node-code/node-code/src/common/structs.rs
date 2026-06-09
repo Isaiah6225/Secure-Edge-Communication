@@ -121,6 +121,7 @@ impl WifiManager {
             if self.stack.is_link_up() {
                 break;
             }
+            info!("[WifiManager::check_stack] stack link is not up. retrying.");
             Timer::after(Duration::from_millis(500)).await;
         }
     }
@@ -152,6 +153,11 @@ impl GSCManager {
                 self.gsc_sender.send(EnrollmentSteps::FinalVerification).await;
             }
         }
+    }
+
+    pub async fn receive_enrollment(&self) {
+        info!("[GSCManager::receive_enrollment]");
+        self.gsc_receiver.receive().await;
     }
 }
 

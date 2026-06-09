@@ -67,6 +67,7 @@ pub async fn manage_global_state(
                     EnrollmentSteps::Initial => {
                         info!("[Global State: EnrollmentSteps::Initial] moving to EnrollmentSteps::Initial");
                         gsc_manager.send_enrollment(enrollment_steps).await;
+                        gsc_manager.receive_enrollment().await;
                         enrollment_steps = EnrollmentSteps::FinalVerification;
                     }, 
                     

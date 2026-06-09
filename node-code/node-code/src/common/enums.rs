@@ -13,6 +13,12 @@ pub enum ProvisionStatus {
     NotSet, 
 }
 
+#[derive(Clone)]
+pub enum WifiConfigStatus {
+    Up, 
+    Down
+}
+
 
 //enrollment sub steps
 //TODO every enum below this can be refactor to be one enum for simplicity
