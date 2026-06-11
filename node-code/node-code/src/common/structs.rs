@@ -28,7 +28,7 @@ use crate::{
     enrollment::format_data,
     common::{
         error::NodeError,
-        enums::{EnrollmentSteps, WifiData},
+        enums::{EnrollmentSteps, WifiData, EnrollmentError},
     },
 };
 use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
@@ -100,13 +100,6 @@ impl WifiManager {
     ) -> Self {
         Self { stack: stack, trng_source: trng_source }
     }
-    /*
-    pub fn new_socket(&self,  rx_buffer: &mut [u8], tx_buffer: &mut [u8]) -> TcpSocket {
-        let mut socket = TcpSocket::new(self.stack, rx_buffer, tx_buffer);
-        socket
-    }
-    */
-
 
     pub fn gen_enrollment(&self, enrollment_steps: &EnrollmentSteps) -> WifiData {
         let command = format_data::format_enrollment(enrollment_steps);
@@ -157,7 +150,7 @@ impl GSCManager {
 
     pub async fn receive_enrollment(&self) {
         info!("[GSCManager::receive_enrollment]");
-        self.gsc_receiver.receive().await;
+        let wt_response = self.gsc_receiver.receive().await;
     }
 }
 

@@ -1,4 +1,10 @@
-use embassy_net::tcp::TcpSocket;
+use core::net::Ipv4Addr;
+use embassy_net::{
+    IpEndpoint,
+    IpAddress,
+    Ipv4Address,
+    tcp::TcpSocket,
+};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::{
     channel::{Receiver, Sender},
@@ -18,7 +24,8 @@ pub async fn wifi_task(
     manage_wifi: WifiManager,
     gsc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, EnrollmentSteps, 16>,
     wtc_sender_handle: Sender<'static, CriticalSectionRawMutex, EnrollmentSteps, 16>,
-    mut wc_rec0: ReceiverWatch<'static, CriticalSectionRawMutex, WifiConfigStatus, 1>
+    mut wc_rec0: ReceiverWatch<'static, CriticalSectionRawMutex, WifiConfigStatus, 1>,
+    ip_address: Ipv4Address
 ) {
     //set socket buffers
     let mut rx_buffer = [0; 1536];
@@ -39,23 +46,23 @@ pub async fn wifi_task(
                     let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
                     tcp_socket.set_timeout(Some(Duration::from_secs(10)));
                     match state {
-                        /*(
-                        WifiCommand::AwaitCommand => {
-                            info!("[wifi_task WifiCommand::Await] awaiting receiver from channel");
-                            let new_data = 
-
-                            info!("[wifi_task WifiCommand::Await] received packet from channel {:?}", new_data);
-                            info!("[wifi_task WifiCommand::Await] sending response over the channel");
-
-                            sender_handle.send(WifiCommand::ReceiveEnrl(1)).await;
-
-                        },
-                        */
                         EnrollmentSteps::Initial => {
                             info!("[wifi_task EnrollmentSteps::Initial]"); 
                             let init_packet = manage_wifi.gen_enrollment(&state); 
-
                             info!("[wifi_task EnrollmentSteps::Initial] created init packet: {:?}", init_packet);
+                            
+                            info!("[wifi_task] EnrollmentSteps::Initial] trying to connect to remote endpoint");
+                            let response = tcp_socket.connect(
+                                IpEndpoint{
+                                    addr: IpAddress::Ipv4(ip_address),
+                                    port:7979,
+                                }
+                            ).await;
+                            
+                            if let Err(e) = response {
+                                info!("[wifi_task] EnrollmentSteps::Initial] error from socket connect: {e:?}");
+                                break;
+                            }
                         },
 
                         EnrollmentSteps::FinalVerification => todo!()

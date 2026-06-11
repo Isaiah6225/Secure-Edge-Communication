@@ -13,6 +13,12 @@ pub enum ProvisionStatus {
     NotSet, 
 }
 
+pub enum EnrollmentError {
+    Success, 
+    Error
+}
+
+//wifi config enum
 #[derive(Clone)]
 pub enum WifiConfigStatus {
     Up, 
