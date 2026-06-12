@@ -48,6 +48,8 @@ pub async fn wifi_task(
                     match state {
                         EnrollmentSteps::Initial => {
                             info!("[wifi_task EnrollmentSteps::Initial]"); 
+                            
+                            // format initial packet 
                             let init_packet = manage_wifi.gen_enrollment(&state); 
                             info!("[wifi_task EnrollmentSteps::Initial] created init packet: {:?}", init_packet);
                             
@@ -61,6 +63,8 @@ pub async fn wifi_task(
                             
                             if let Err(e) = response {
                                 info!("[wifi_task] EnrollmentSteps::Initial] error from socket connect: {e:?}");
+                                info!("[wifi_task] EnrollmentSteps::Initial] sending response to GSC to retry EnrollmentSteps::Initial");
+                                wtc_sender_handle.send(EnrollmentSteps::Initial).await;
                                 break;
                             }
                         },

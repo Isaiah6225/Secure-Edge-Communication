@@ -112,6 +112,7 @@ impl WifiManager {
         loop {
             //check if a connection's been made on the link layer 
             if self.stack.is_link_up() {
+                info!("[WifiManager::check_stack] stack link is up.");
                 break;
             }
             info!("[WifiManager::check_stack] stack link is not up. retrying.");
@@ -133,7 +134,7 @@ impl GSCManager {
         Self { gsc_sender: gsc_sender, gsc_receiver: gsc_receiver }
     }
 
-    pub async fn send_enrollment(&self, enrollment_steps: EnrollmentSteps) {
+    pub async fn send_enrollment(&self, enrollment_steps: &EnrollmentSteps) {
         info!("[GSCManager::send_enrollment]");
         match enrollment_steps {
             EnrollmentSteps::Initial => {
@@ -148,9 +149,10 @@ impl GSCManager {
         }
     }
 
-    pub async fn receive_enrollment(&self) {
+    pub async fn receive_enrollment(&self) -> EnrollmentSteps{
         info!("[GSCManager::receive_enrollment]");
         let wt_response = self.gsc_receiver.receive().await;
+        wt_response
     }
 }
 
