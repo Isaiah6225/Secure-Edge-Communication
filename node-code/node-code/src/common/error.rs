@@ -2,12 +2,12 @@ use esp_hal::rng::{
     TrngError
 };
 
-
 //error enum
 #[derive(Debug)]
 pub enum NodeError {
     Rng(TrngError),
-    NvsError(esp_nvs::error::Error), 
+    NvsError(esp_nvs::error::Error),
+    InvalidKeyLength(usize),
 }
 
 impl From<TrngError> for NodeError {
@@ -21,3 +21,11 @@ impl From<esp_nvs::error::Error> for NodeError {
         NodeError::NvsError(error)
     }
 }
+
+/*
+impl From<InvalidKeyLength> for NodeError {
+    fn from(error: InvalidKeyLength) -> Self {
+        NodeError::(InvalidKeyLength)
+    }
+}
+*/

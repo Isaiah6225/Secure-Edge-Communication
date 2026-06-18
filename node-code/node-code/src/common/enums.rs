@@ -1,4 +1,5 @@
 use crate::common::structs::SendPacketInitialEnrl;
+
 //states 
 pub enum GlobalStates {
     IsProvisioned,
@@ -13,6 +14,12 @@ pub enum ProvisionStatus {
     NotSet, 
 }
 
+//check whether ecc key pair is set.
+pub enum EccStatus {
+    Set,
+    NotSet,
+}
+
 pub enum EnrollmentError {
     Success, 
     Error
@@ -25,19 +32,27 @@ pub enum WifiConfigStatus {
     Down
 }
 
-
 //enrollment sub steps
 //TODO every enum below this can be refactor to be one enum for simplicity
 pub enum EnrollmentSteps {
-    Initial,
+    VerifyKeys,
+    Initial([u8; 33]),
     FinalVerification
 }
 
 //channel communication
+/*
 #[derive(Debug)]
 pub enum WifiCommand {
     SendEnrlInitial,
     SendFinalVerification,
+}
+*/
+
+//wifi command for Wifi task to communicate with Global state communicator
+pub enum WifiCommand {
+    Initial, 
+    FinalVerification, 
 }
 
 #[derive(Debug)]

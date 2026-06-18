@@ -1,4 +1,3 @@
-use core::net::Ipv4Addr;
 use embassy_net::{
     IpEndpoint,
     IpAddress,
@@ -12,18 +11,18 @@ use embassy_sync::{
 };
 use crate::{
     common::{
-        enums::{EnrollmentSteps, WifiConfigStatus},
+        enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
         structs::{SendPacketInitialEnrl, WifiManager},
     },
 };
-use log::{info, warn};
+use log::info;
 use embassy_time::{Duration, Timer};
 
 #[embassy_executor::task]
 pub async fn wifi_task(
     manage_wifi: WifiManager,
-    gsc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, EnrollmentSteps, 16>,
-    wtc_sender_handle: Sender<'static, CriticalSectionRawMutex, EnrollmentSteps, 16>,
+    gsc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, EnrollmentSteps, 8>,
+    wtc_sender_handle: Sender<'static, CriticalSectionRawMutex, WifiCommand, 8>,
     mut wc_rec0: ReceiverWatch<'static, CriticalSectionRawMutex, WifiConfigStatus, 1>,
     ip_address: Ipv4Address
 ) {
@@ -46,11 +45,11 @@ pub async fn wifi_task(
                     let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
                     tcp_socket.set_timeout(Some(Duration::from_secs(10)));
                     match state {
-                        EnrollmentSteps::Initial => {
+                        EnrollmentSteps::Initial(ecdsa_pub_key) => {
                             info!("[wifi_task EnrollmentSteps::Initial]"); 
                             
                             // format initial packet 
-                            let init_packet = manage_wifi.gen_enrollment(&state); 
+                            let init_packet = manage_wifi.gen_enrollment_initial(ecdsa_pub_key); 
                             info!("[wifi_task EnrollmentSteps::Initial] created init packet: {:?}", init_packet);
                             
                             info!("[wifi_task] EnrollmentSteps::Initial] trying to connect to remote endpoint");
@@ -60,16 +59,17 @@ pub async fn wifi_task(
                                     port:7979,
                                 }
                             ).await;
-                            
+                             
                             if let Err(e) = response {
                                 info!("[wifi_task] EnrollmentSteps::Initial] error from socket connect: {e:?}");
                                 info!("[wifi_task] EnrollmentSteps::Initial] sending response to GSC to retry EnrollmentSteps::Initial");
-                                wtc_sender_handle.send(EnrollmentSteps::Initial).await;
+                                wtc_sender_handle.send(WifiCommand::Initial).await;
                                 break;
                             }
                         },
 
-                        EnrollmentSteps::FinalVerification => todo!()
+                        EnrollmentSteps::FinalVerification => todo!(),
+                        EnrollmentSteps::VerifyKeys => todo!()
                     };
                 }
             },

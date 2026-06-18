@@ -18,9 +18,9 @@ use crate::{
 
 #[embassy_executor::task]
 pub async fn wifi_config(
-    WIFI_PASSWORD: &'static str,
+    wifi_password: &'static str,
     mut controller: WifiController<'static>,
-    mut sen0: Sender<'static, CriticalSectionRawMutex, WifiConfigStatus, 1>
+    sen0: Sender<'static, CriticalSectionRawMutex, WifiConfigStatus, 1>
 ) {
     loop {
         match sta_state() {
@@ -40,7 +40,7 @@ pub async fn wifi_config(
             let client_config = 
                 ModeConfig::Client(ClientConfig::default()
                                    .with_ssid("SEC".into())
-                                   .with_password(WIFI_PASSWORD.into())
+                                   .with_password(wifi_password.into())
                 );
             controller.set_config(&client_config).unwrap();
 

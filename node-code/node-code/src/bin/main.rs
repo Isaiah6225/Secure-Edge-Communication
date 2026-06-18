@@ -29,7 +29,7 @@ use node_code::{
     global_state::global_state,
     common::{
         structs::{StorageManager, WifiManager, GSCManager},
-        enums::{EnrollmentSteps, WifiConfigStatus},
+        enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
         structs
     },
     wifi_task::{wifi_task, wifi_config},
@@ -41,13 +41,12 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-extern crate alloc;
 esp_bootloader_esp_idf::esp_app_desc!();
 const WIFI_PASSWORD: &'static str = env!("WIFI_PASSWORD");
 const REMOTE_IP: &'static str = env!("REMOTE_IP");
 
-static GSC: Channel<CriticalSectionRawMutex, EnrollmentSteps, 16> = Channel::new();
-static WTC: Channel<CriticalSectionRawMutex, EnrollmentSteps, 16> = Channel::new();
+static GSC: Channel<CriticalSectionRawMutex, EnrollmentSteps, 8> = Channel::new();
+static WTC: Channel<CriticalSectionRawMutex, WifiCommand, 8> = Channel::new();
 static WC: Watch<CriticalSectionRawMutex, WifiConfigStatus, 1> = Watch::new();
 
 
@@ -107,8 +106,8 @@ async fn main(spawner: Spawner) {
     let storage_manager = StorageManager::new(nvs);
     
     //wifi config watch messaging channel
-    let mut rcv0 = WC.receiver().unwrap();
-    let mut sen0 = WC.sender();
+    let rcv0 = WC.receiver().unwrap();
+    let sen0 = WC.sender();
 
     spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0)).ok();
     spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0, ip_address)).ok();
