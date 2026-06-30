@@ -25,18 +25,31 @@ pub async fn wifi_config(
     loop {
         match sta_state() {
             WifiStaState::Started => {
-                controller.wait_for_event(WifiEvent::StaStop).await;
+                info!("[wifi_config] the sta is in the started state");
+                controller.wait_for_event(WifiEvent::StaDisconnected).await;
                 Timer::after(Duration::from_millis(5000)).await
             }
-            WifiStaState::Stopped => {
-                warn!("[wifi_connection] the sta stopped set up.");
-                sen0.send(WifiConfigStatus::Down);
+            WifiStaState::Disconnected => {
+                warn!("[wifi_config] the sta disconnected");
+                match controller.connect_async().await {
+                    Ok(()) => {
+                        info!("[wifi_config] connection up");
+                        sen0.send(WifiConfigStatus::Up);
+                    }
+
+                    Err(e) => {
+                        info!("[wifi_config] connection down with error: {:?}", e);
+                        sen0.send(WifiConfigStatus::Down);
+                        Timer::after(Duration::from_millis(5000)).await
+                    }
+                }
             }
             _ => {}
         }
 
         //TODO Need to consider all the unwraps and make this into a function  
         if !matches!(controller.is_started(), Ok(true)) {
+            info!("[wifi_config] setting client config");
             let client_config = 
                 ModeConfig::Client(ClientConfig::default()
                                    .with_ssid("SEC".into())
@@ -44,24 +57,25 @@ pub async fn wifi_config(
                 );
             controller.set_config(&client_config).unwrap();
 
-            info!("[wifi_connection] starting wifi_controller");
+            info!("[wifi_config] starting wifi_controller");
             controller.start_async().await.unwrap();
-            info!("[wifi_connection] controller started");
+            info!("[wifi_config] controller started");
 
-            info!("[wifi_connection] connecting to AP");
+            info!("[wifi_config] connecting to AP");
             match controller.connect_async().await {
                 Ok(()) => {
+                    info!("[wifi_config] connection up");
                     sen0.send(WifiConfigStatus::Up);
                 }
 
-                Err(_) => {
+                Err(e) => {
+                    info!("[wifi_config] connection down with error: {:?}", e);
                     sen0.send(WifiConfigStatus::Down);
                     Timer::after(Duration::from_millis(5000)).await
                 }
             }
         } else {
-            controller.wait_for_event(WifiEvent::ApStop).await;
-            sen0.send(WifiConfigStatus::Down);
+            //controller.wait_for_event(WifiEvent::StaDisconnected).await;
             Timer::after(Duration::from_millis(5000)).await
         }
     }

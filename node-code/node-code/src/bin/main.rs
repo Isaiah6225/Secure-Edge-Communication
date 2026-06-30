@@ -108,7 +108,7 @@ async fn main(spawner: Spawner) {
     //wifi config watch messaging channel
     let rcv0 = WC.receiver().unwrap();
     let sen0 = WC.sender();
-
+    
     spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0)).ok();
     spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0, ip_address)).ok();
     spawner.spawn(structs::net_task(runner)).ok();

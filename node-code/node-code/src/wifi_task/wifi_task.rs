@@ -1,3 +1,5 @@
+use heapless::String;
+use core::fmt::Write;
 use embassy_net::{
     IpEndpoint,
     IpAddress,
@@ -26,14 +28,20 @@ pub async fn wifi_task(
     mut wc_rec0: ReceiverWatch<'static, CriticalSectionRawMutex, WifiConfigStatus, 1>,
     ip_address: Ipv4Address
 ) {
-    //set socket buffers
+    //set socket buffers and setting write retry count
     let mut rx_buffer = [0; 1536];
     let mut tx_buffer = [0; 1536];
+    let mut write_retry_count = 0;
+
+
 
     info!("[wifi_task] starting wifi set up and send process");
     loop {
-        //check stack is up 
+        //check stack is up and reset write count 
+
+        info!("[wifi_task] checking config_state from wifi_config"); 
         let config_state = wc_rec0.get().await;
+        info!("[wifi_task] config_state: {:?}", config_state); 
 
         match config_state {
             WifiConfigStatus::Up => {
@@ -60,11 +68,68 @@ pub async fn wifi_task(
                                 }
                             ).await;
                              
+                            //handle error in case of connect error 
                             if let Err(e) = response {
                                 info!("[wifi_task] EnrollmentSteps::Initial] error from socket connect: {e:?}");
                                 info!("[wifi_task] EnrollmentSteps::Initial] sending response to GSC to retry EnrollmentSteps::Initial");
                                 wtc_sender_handle.send(WifiCommand::Initial).await;
                                 break;
+                            }
+                            
+                            info!("[wifi_task] EnrollmentSteps::Initial] remote endpoint successfully connected to moving to send packet");
+                            loop {
+                                info!("[wifi_task] EnrollmentSteps::Initial] write retry count before entering if statement: {}", write_retry_count);
+                                //create send buffer
+                                if write_retry_count < 3 {
+                                    let mut init_send = String::<512>::new();
+                                    info!("[wifi_task] EnrollmentSteps::Initial] created buffer to send data to remote server");
+                                    if let Ok(_) = write!(
+                                        init_send,
+                                        "device_id: {:?}, device_pub: {:?}, nonce: {}",
+                                        init_packet.dev_mac_add, init_packet.serialized_vkey, init_packet.device_nonce
+                                    ) {
+                                        info!("[wifi_task] EnrollmentSteps::Initial] successfully wrote data to buffer");
+                                        info!("[wifi_task] EnrollmentSteps::Initial] buffer: {:?}", init_send);
+                                        let init_request = tcp_socket.write(init_send.as_bytes()).await;
+
+                                        if let Err(e) = init_request {
+                                            info!("[wifi_task] EnrollmentSteps::Initial] buffer failed to create with: {e:?}. Retrying the buffer creation to send");
+                                            write_retry_count += 1;
+                                            info!("[wifi_task] EnrollmentSteps::Initial] write retry count: {}", write_retry_count);
+                                        } else {
+                                            info!("[wifi_task] EnrollmentSteps::Initial] successfully sent written buffer");
+                                            break;
+                                        }
+                                    } else {
+                                        info!("[wifi_task] EnrollmentSteps::Initial] write failed procing write retry count: {}", write_retry_count);
+                                        write_retry_count += 1;
+                                    }
+                                    /*
+                                    if write!(
+                                        init_send,
+                                        "device_id: {:?}, device_pub: {:?}, nonce: {}",
+                                        init_packet.dev_mac_add, init_packet.serialized_vkey, init_packet.device_nonce
+                                    ).is_ok() {
+                                        let init_request = tcp_socket.write(init_send.as_bytes()).await;
+                                        if let Err(e) = init_request {
+                                            info!("[wifi_task] EnrollmentSteps::Initial] buffer failed to create with: {e:?}. Retrying the buffer creation to send");
+                                            write_retry_count += 1;
+                                            info!("[wifi_task] EnrollmentSteps::Initial] write retry count: {}", write_retry_count);
+                                        } else {
+                                            break;
+                                        }
+                                    } else {
+                                        info!("[wifi_task] EnrollmentSteps::Initial] write failed procing write retry count: {}", write_retry_count);
+                                        write_retry_count += 1;
+                                    }
+                                    */
+
+                                } else {
+                                    info!("[wifi_task] EnrollmentSteps::Initial] write failed after 3 attempts. sending error response to GSC to retry EnrollmentSteps::Initial");
+                                    write_retry_count = 0;
+                                    wtc_sender_handle.send(WifiCommand::Initial).await;
+                                    break;
+                                }
                             }
                         },
 
@@ -76,7 +141,7 @@ pub async fn wifi_task(
 
             WifiConfigStatus::Down => {
                 info!("[wifi_task WifiConfigStatus::Down]"); 
-                Timer::after(Duration::from_millis(5000)).await
+                Timer::after(Duration::from_secs(15)).await
             },
         }
     }   

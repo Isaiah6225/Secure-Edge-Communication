@@ -152,7 +152,7 @@ impl WifiManager {
         Self { stack: stack, trng_source: trng_source }
     }
 
-    pub fn gen_enrollment_initial(&self, sv_key_bytes: [u8; 33]) -> WifiData {
+    pub fn gen_enrollment_initial(&self, sv_key_bytes: [u8; 33]) -> SendPacketInitialEnrl {
         let mac = read_id::read_mac();
         let nonce = gen_nonce::gen_nonce();
 

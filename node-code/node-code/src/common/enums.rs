@@ -26,7 +26,7 @@ pub enum EnrollmentError {
 }
 
 //wifi config enum
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum WifiConfigStatus {
     Up, 
     Down
