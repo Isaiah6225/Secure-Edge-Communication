@@ -31,14 +31,14 @@ pub async fn wifi_task(
     //set socket buffers and setting write retry count
     let mut rx_buffer = [0; 1536];
     let mut tx_buffer = [0; 1536];
+    let mut read_buffer = [0u8; 1024];
     let mut write_retry_count = 0;
 
 
 
     info!("[wifi_task] starting wifi set up and send process");
     loop {
-        //check stack is up and reset write count 
-
+        //check wifi config
         info!("[wifi_task] checking config_state from wifi_config"); 
         let config_state = wc_rec0.get().await;
         info!("[wifi_task] config_state: {:?}", config_state); 
@@ -79,53 +79,34 @@ pub async fn wifi_task(
                             info!("[wifi_task] EnrollmentSteps::Initial] remote endpoint successfully connected to moving to send packet");
                             loop {
                                 info!("[wifi_task] EnrollmentSteps::Initial] write retry count before entering if statement: {}", write_retry_count);
-                                //create send buffer
+                                //check write retry_count
                                 if write_retry_count < 3 {
-                                    let mut init_send = String::<512>::new();
+                                    let mut init_send_buffer = String::<512>::new();
                                     info!("[wifi_task] EnrollmentSteps::Initial] created buffer to send data to remote server");
+
                                     if let Ok(_) = write!(
-                                        init_send,
+                                        init_send_buffer,
                                         "device_id: {:?}, device_pub: {:?}, nonce: {}",
                                         init_packet.dev_mac_add, init_packet.serialized_vkey, init_packet.device_nonce
                                     ) {
                                         info!("[wifi_task] EnrollmentSteps::Initial] successfully wrote data to buffer");
-                                        info!("[wifi_task] EnrollmentSteps::Initial] buffer: {:?}", init_send);
-                                        let init_request = tcp_socket.write(init_send.as_bytes()).await;
+                                        info!("[wifi_task] EnrollmentSteps::Initial] buffer: {:?}", init_send_buffer);
+                                        let init_request = tcp_socket.write(init_send_buffer.as_bytes()).await;
 
                                         if let Err(e) = init_request {
                                             info!("[wifi_task] EnrollmentSteps::Initial] buffer failed to create with: {e:?}. Retrying the buffer creation to send");
                                             write_retry_count += 1;
                                             info!("[wifi_task] EnrollmentSteps::Initial] write retry count: {}", write_retry_count);
                                         } else {
-                                            info!("[wifi_task] EnrollmentSteps::Initial] successfully sent written buffer");
-                                            break;
+                                            info!("[wifi_task] EnrollmentSteps::Initial] successfully sent written buffer and keeping buffer alive");
+                                            wtc_sender_handle.send(WifiCommand::FinalVerification).await;
                                         }
                                     } else {
                                         info!("[wifi_task] EnrollmentSteps::Initial] write failed procing write retry count: {}", write_retry_count);
                                         write_retry_count += 1;
                                     }
-                                    /*
-                                    if write!(
-                                        init_send,
-                                        "device_id: {:?}, device_pub: {:?}, nonce: {}",
-                                        init_packet.dev_mac_add, init_packet.serialized_vkey, init_packet.device_nonce
-                                    ).is_ok() {
-                                        let init_request = tcp_socket.write(init_send.as_bytes()).await;
-                                        if let Err(e) = init_request {
-                                            info!("[wifi_task] EnrollmentSteps::Initial] buffer failed to create with: {e:?}. Retrying the buffer creation to send");
-                                            write_retry_count += 1;
-                                            info!("[wifi_task] EnrollmentSteps::Initial] write retry count: {}", write_retry_count);
-                                        } else {
-                                            break;
-                                        }
-                                    } else {
-                                        info!("[wifi_task] EnrollmentSteps::Initial] write failed procing write retry count: {}", write_retry_count);
-                                        write_retry_count += 1;
-                                    }
-                                    */
-
                                 } else {
-                                    info!("[wifi_task] EnrollmentSteps::Initial] write failed after 3 attempts. sending error response to GSC to retry EnrollmentSteps::Initial");
+                                    info!("[wifi_task EnrollmentSteps::Initial] write failed after 3 attempts. sending error response to GSC to retry EnrollmentSteps::Initial");
                                     write_retry_count = 0;
                                     wtc_sender_handle.send(WifiCommand::Initial).await;
                                     break;
@@ -133,7 +114,25 @@ pub async fn wifi_task(
                             }
                         },
 
-                        EnrollmentSteps::FinalVerification => todo!(),
+                        EnrollmentSteps::FinalVerification => {
+                            info!("[wifi_task EnrollmentSteps::FinalVerification] awaitng bytes in rx buf");
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(0) => {
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] 0 bytes from read");
+                                }
+
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task EnrollmentSteps::FinalVerification] received data from remote server with {:?}", s); 
+                                    }
+                                }
+                                
+                                Err(e) => {
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] read error: {:?}", e);
+                                }
+                            }
+                        },
                         EnrollmentSteps::VerifyKeys => todo!()
                     };
                 }
@@ -141,7 +140,7 @@ pub async fn wifi_task(
 
             WifiConfigStatus::Down => {
                 info!("[wifi_task WifiConfigStatus::Down]"); 
-                Timer::after(Duration::from_secs(15)).await
+                Timer::after(Duration::from_secs(30)).await
             },
         }
     }   

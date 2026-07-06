@@ -42,7 +42,7 @@ pub async fn wifi_config(
                         sen0.send(WifiConfigStatus::Down);
                         Timer::after(Duration::from_millis(5000)).await
                     }
-                }
+               }
             }
             _ => {}
         }
