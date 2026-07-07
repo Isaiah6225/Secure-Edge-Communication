@@ -192,32 +192,27 @@ impl GSCManager {
     pub async fn send_enrollment(&self, enrollment_steps: &EnrollmentSteps) {
         info!("[GSCManager::send_enrollment]");
         match enrollment_steps {
-            EnrollmentSteps::Initial(pub_key) => {
-                info!("[GSCManager::send_enrollment] sending INITIAL ENROLLMENT request to wifi_task.");
-                self.gsc_sender_handle.send(EnrollmentSteps::Initial(*pub_key)).await;
+            EnrollmentSteps::Enrollment(pub_key) => {
+                info!("[GSCManager::send_enrollment] sending ENROLLMENT request to wifi_task.");
+                self.gsc_sender_handle.send(EnrollmentSteps::Enrollment(*pub_key)).await;
             }, 
-
-            EnrollmentSteps::FinalVerification => {
-                info!("[GSCManager::send_enrollment] sending VERIFICATION ENROLLMENT request to wifi_task.");
-                self.gsc_sender_handle.send(EnrollmentSteps::FinalVerification).await;
-            }
 
             EnrollmentSteps::VerifyKeys => {} 
         }
     }
 
-    pub async fn receive_enrollment(&self) -> EnrollmentSteps {
+    pub async fn receive_enrollment(&self) -> WifiCommand {
         info!("[GSCManager::receive_enrollment]");
         let wt_response = self.wtc_receiver_handle.receive().await;
         match wt_response {
-            WifiCommand::Initial => {
-                info!("[GSCManager::receive_enrollment] wifi_task sent initial returning EnrollmentSteps::Initial");
-                return EnrollmentSteps::VerifyKeys;
+            WifiCommand::Failure => {
+                info!("[GSCManager::receive_enrollment] wifi_task sent failure returning EnrollmentSteps::Enrollment");
+                return WifiCommand::Failure;
             }
 
-            WifiCommand::FinalVerification => {
-                info!("[GSCManager::receive_enrollment] wifi_task sent final verification returning EnrollmentSteps::FinalVerification");
-                return EnrollmentSteps::FinalVerification;
+            WifiCommand::Success => {
+                info!("[GSCManager::receive_enrollment] wifi_task sent succcess");
+                return WifiCommand::Success;
             }
         }
     }

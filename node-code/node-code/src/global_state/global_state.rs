@@ -10,6 +10,7 @@ use crate::{
             ProvisionStatus,
             EnrollmentSteps,
             EccStatus,
+            WifiCommand
         }
     },
     
@@ -98,7 +99,7 @@ pub async fn manage_global_state(
                                 Ok(pub_key) => {
                                     info!("[Global State: get_ecdsa_pub] received pub key from nvs: {:?}", pub_key);
                                     info!("[Global State: Enrollment] moving to enrollment steps");
-                                    enrollment_steps = EnrollmentSteps::Initial(pub_key)
+                                    enrollment_steps = EnrollmentSteps::Enrollment(pub_key)
                                 }
 
 
@@ -110,17 +111,22 @@ pub async fn manage_global_state(
                         }
                         
                         //move to initial communication phase
-                        EnrollmentSteps::Initial(pub_key) => {
-                            info!("[Global State: EnrollmentSteps::Initial] moving to EnrollmentSteps::Initial");
-                            gsc_manager.send_enrollment(&EnrollmentSteps::Initial(pub_key)).await;
-                            enrollment_steps = gsc_manager.receive_enrollment().await;
+                        EnrollmentSteps::Enrollment(pub_key) => {
+                            info!("[Global State: EnrollmentSteps::Enrollment] moving to EnrollmentSteps::Enrollment");
+                            gsc_manager.send_enrollment(&EnrollmentSteps::Enrollment(pub_key)).await;
+
+                            //TODO figure out a better way to create a method around this block
+                            match gsc_manager.receive_enrollment().await {
+                                WifiCommand::Success => {
+                                    info!("[Global State: EnrollmentSteps::Enrollment] success received from wifi_task moving to StandardComm");
+                                    state = GlobalStates::StandardComm;
+                                }
+                                WifiCommand::Failure => {
+                                    info!("[Global State: EnrollmentSteps::Enrollment] failure received from wifi_task moving to VerifyKeys");
+                                    enrollment_steps = EnrollmentSteps::VerifyKeys;
+                                }
+                            }
                         }, 
-                        
-                        //move to final verification communication phase 
-                        EnrollmentSteps::FinalVerification => {
-                            info!("[Global State: EnrollmentSteps::FinalVerification] moving to EnrollmentSteps::FinalVerification");
-                            state = GlobalStates::StandardComm;
-                        }
                     }
             }
             

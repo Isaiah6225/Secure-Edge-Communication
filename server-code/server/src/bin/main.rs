@@ -29,6 +29,7 @@ async fn main() -> Result<(), ServerError>{
         loop {
             match manage_request::manage_request(&listener).await {
                 Ok(stream) => {
+                    println!("[main] spawning task to handle connection");
                     task::spawn(async move {
                         match conn::handle_connection(stream).await {
                             MainFlow::Drop => {

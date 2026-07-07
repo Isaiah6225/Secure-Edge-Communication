@@ -34,8 +34,6 @@ pub async fn wifi_task(
     let mut read_buffer = [0u8; 1024];
     let mut write_retry_count = 0;
 
-
-
     info!("[wifi_task] starting wifi set up and send process");
     loop {
         //check wifi config
@@ -47,19 +45,28 @@ pub async fn wifi_task(
             WifiConfigStatus::Up => {
                 info!("[wifi_task WifiConfigStatus::Up]"); 
                 manage_wifi.check_stack().await;
+                
+                //receive the state from global state communicator (GSC)
                 let state = gsc_receiver_handle.receive().await;
-                loop {
-                    //create socket with buffers
-                    let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
-                    tcp_socket.set_timeout(Some(Duration::from_secs(10)));
+                'session: loop {
                     match state {
-                        EnrollmentSteps::Initial(ecdsa_pub_key) => {
-                            info!("[wifi_task EnrollmentSteps::Initial]"); 
-                            
-                            // format initial packet 
+                        EnrollmentSteps::Enrollment(ecdsa_pub_key) => {
+                            /*
+                             INITIAL SEND
+                             */
+
+                            info!("[wifi_task EnrollmentSteps::Enrollment]"); 
+                            //create socket with buffers
+                            let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
+                            tcp_socket.set_timeout(Some(Duration::from_secs(10)));
+
+                                
+
+                            //format initial packet 
                             let init_packet = manage_wifi.gen_enrollment_initial(ecdsa_pub_key); 
                             info!("[wifi_task EnrollmentSteps::Initial] created init packet: {:?}", init_packet);
-                            
+
+                            //connect to endpoint
                             info!("[wifi_task] EnrollmentSteps::Initial] trying to connect to remote endpoint");
                             let response = tcp_socket.connect(
                                 IpEndpoint{
@@ -72,12 +79,13 @@ pub async fn wifi_task(
                             if let Err(e) = response {
                                 info!("[wifi_task] EnrollmentSteps::Initial] error from socket connect: {e:?}");
                                 info!("[wifi_task] EnrollmentSteps::Initial] sending response to GSC to retry EnrollmentSteps::Initial");
-                                wtc_sender_handle.send(WifiCommand::Initial).await;
-                                break;
+                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                break 'session;
                             }
-                            
+
+                            //start initial send 
                             info!("[wifi_task] EnrollmentSteps::Initial] remote endpoint successfully connected to moving to send packet");
-                            loop {
+                            'initial_send: loop {
                                 info!("[wifi_task] EnrollmentSteps::Initial] write retry count before entering if statement: {}", write_retry_count);
                                 //check write retry_count
                                 if write_retry_count < 3 {
@@ -99,26 +107,30 @@ pub async fn wifi_task(
                                             info!("[wifi_task] EnrollmentSteps::Initial] write retry count: {}", write_retry_count);
                                         } else {
                                             info!("[wifi_task] EnrollmentSteps::Initial] successfully sent written buffer and keeping buffer alive");
-                                            wtc_sender_handle.send(WifiCommand::FinalVerification).await;
+                                            break 'initial_send; 
                                         }
                                     } else {
                                         info!("[wifi_task] EnrollmentSteps::Initial] write failed procing write retry count: {}", write_retry_count);
                                         write_retry_count += 1;
                                     }
                                 } else {
-                                    info!("[wifi_task EnrollmentSteps::Initial] write failed after 3 attempts. sending error response to GSC to retry EnrollmentSteps::Initial");
+                                    info!("[wifi_task EnrollmentSteps::Initial] write failed after 3 attempts. sending failure response to GSC to retry EnrollmentSteps::Enrollment");
                                     write_retry_count = 0;
-                                    wtc_sender_handle.send(WifiCommand::Initial).await;
-                                    break;
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
                                 }
                             }
-                        },
+                            
+                            /*
+                            FINAL VERIFICATION 
+                             */
 
-                        EnrollmentSteps::FinalVerification => {
                             info!("[wifi_task EnrollmentSteps::FinalVerification] awaitng bytes in rx buf");
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(0) => {
                                     info!("[wifi_task EnrollmentSteps::FinalVerification] 0 bytes from read");
+                                    wtc_sender_handle.send(WifiCommand::Failure).await; 
+                                    break 'session;
                                 }
 
                                 Ok(len) => {
@@ -129,19 +141,22 @@ pub async fn wifi_task(
                                 }
                                 
                                 Err(e) => {
-                                    info!("[wifi_task EnrollmentSteps::FinalVerification] read error: {:?}", e);
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
                                 }
                             }
-                        },
-                        EnrollmentSteps::VerifyKeys => todo!()
-                    };
-                }
-            },
 
+                        }
+
+                        EnrollmentSteps::VerifyKeys => todo!(),
+                    }
+                }
+            }
             WifiConfigStatus::Down => {
                 info!("[wifi_task WifiConfigStatus::Down]"); 
                 Timer::after(Duration::from_secs(30)).await
             },
         }
-    }   
+    }
 }

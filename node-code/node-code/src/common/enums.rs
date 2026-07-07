@@ -36,8 +36,7 @@ pub enum WifiConfigStatus {
 //TODO every enum below this can be refactor to be one enum for simplicity
 pub enum EnrollmentSteps {
     VerifyKeys,
-    Initial([u8; 33]),
-    FinalVerification
+    Enrollment([u8; 33]),
 }
 
 //channel communication
@@ -51,8 +50,8 @@ pub enum WifiCommand {
 
 //wifi command for Wifi task to communicate with Global state communicator
 pub enum WifiCommand {
-    Initial, 
-    FinalVerification, 
+    Failure,
+    Success
 }
 
 #[derive(Debug)]

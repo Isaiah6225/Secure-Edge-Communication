@@ -32,10 +32,12 @@ pub async fn tcp_listen(listener: &TcpListener) -> Result<tokio::net::TcpStream,
 
 //handle connection received connection 
 pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
+    println!("[networking::conn::handle_connection] starting handle connection match statement");
     let mut buf = [0u8; 4096];
      
     //tcp_stream.readable().await;
     match tcp_stream.ready(Interest::READABLE).await {
+        println!("[networking::conn::handle_connection] choosing a match block");
         Ok(Interest) => {
             match tcp_stream.try_read(&mut buf) {
                 Ok(0) => {
@@ -53,8 +55,8 @@ pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
                             return MainFlow::Drop;
                         },
                     };
-                    let v: Vec<&str> = string.split("\n").collect();
-                    println!("[networking::conn::handle_connection] string res: {:?}", v);
+                    //let v: Vec<&str> = string.split("\n").collect();
+                    println!("[networking::conn::handle_connection] string res: {:?}", string);
                     return MainFlow::Enroll(tcp_stream);
                 },
                 /*
