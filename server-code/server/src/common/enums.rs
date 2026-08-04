@@ -1,7 +1,6 @@
 use tokio::{
     net::TcpStream,
     sync::{
-        mpsc::Receiver,
         oneshot::Sender,
     }
 };
@@ -35,7 +34,7 @@ pub enum EnrollmentCheck {
 }
 
 pub enum DBOps {
-    CheckDevice(Sender<ResultDBOps>, Device), 
+    CheckDevice(Sender<ResultDBOps>, Device),
 }
 
 pub enum ResultDBOps {

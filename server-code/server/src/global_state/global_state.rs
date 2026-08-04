@@ -4,7 +4,8 @@ use crate::{
             GlobalStatesEnrollment,
             TimeStatus,
             EnrollmentCheck,
-            DBOps
+            DBOps,
+            ResultDBOps
         },
         structs::Device,
     },
@@ -13,7 +14,6 @@ use crate::{
         check_device_id
     },
 };
-use rusqlite::Connection;
 use tokio::{
     net::TcpStream,
     sync::{
@@ -33,56 +33,37 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: Device, db_tx: Se
             GlobalStatesEnrollment::RespondInitial(stream) => {
                 match check_window {
                     TimeStatus::Open => {
-                        println!("[GlobalStatesEnrollment::RespondInital] checking packet then responding.");
-                        println!("[GlobalStatesEnrollment::RespondInital] {:?}", stream);
+                        println!("[GlobalStatesEnrollment::RespondInitial] checking packet then responding.");
+                        println!("[GlobalStatesEnrollment::RespondInitial] {:?}", stream);
 
                         let en_check = check_device_id::check_id(&data_parsed.device_id);
                         if en_check == EnrollmentCheck::Success {
                             let (tx, rx) = oneshot::channel();
-                            db_tx.send(DBOps::CheckDevice(tx, data_parsed)).await;
+                            if let Err(_) = db_tx.send(DBOps::CheckDevice(tx, data_parsed)).await{
+                                println!("[GlobalStatesEnrollment::RespondInitial] receiver dropped when sending to manage_db");
+                            };
+
+                            match rx.await{
+                                //Error if device doesn't exist which it shouldn't because this is
+                                //the enrollment phase. Success if device exist which should close
+                                //the connection as the device exist. 
+                                Ok(ResultDBOps::Error) => state = GlobalStatesEnrollment::FinalVerification(stream),
+                                Ok(ResultDBOps::Success) | Err(_) => state = GlobalStatesEnrollment::ClosedEnrollment(stream),
+                            };
                         } else {
                             println!("[GlobalStatesEnrollment::RespondInitial] enrollment check failed moving to closed enrollment");
                             state = GlobalStatesEnrollment::ClosedEnrollment(stream);
                         }
-                        /*
-                        let check_arr = [en_check, db_check];
-                        let check_res = check_arr.into_iter().find(|x| *x == EnrollmentCheck::Error);
-                        match check_res {
-                            Some(EnrollmentCheck::Success) | None => {
-                                println!("[GlobalStatesEnrollment::RespondInitial] device ID check successful, moving to checking if device is existing");
-                                state = GlobalStatesEnrollment::FinalVerification(stream);
-                            }
-
-                            Some(EnrollmentCheck::Error) => {
-                                println!("[GlobalStatesEnrollment::RespondInitial] enrollment check failed moving to closed enrollment");
-                                state = GlobalStatesEnrollment::ClosedEnrollment(stream);
-                            }
-                        }
-                        match check_device_id::check_id(&data_parsed.device_id) {
-                            EnrollmentCheck::Success => {
-                                println!("[GlobalStatesEnrollment::RespondInitial] device ID check successful, moving to checking if device is existing");
-                                check_device_db::check_device_db(data_parsed.device_id, data_parsed.device_pub, data_parsed.nonce);
-                                state = GlobalStatesEnrollment::FinalVerification(stream);
-                            }
-                            EnrollmentCheck::Error => {
-                                println!("[GlobalStatesEnrollment::RespondInitial] enrollment check failed moving to closed enrollment");
-                                state = GlobalStatesEnrollment::ClosedEnrollment(stream);
-                            }
-                        }*/
                     }
-
                     TimeStatus::Closed => {
                         println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] Enrollment window closed dropping connection");    
                         state = GlobalStatesEnrollment::ClosedEnrollment(stream);
                     }
                 }
             }
-
-
             GlobalStatesEnrollment::FinalVerification(stream) => {
                 println!("[GlobalStatesEnrollment::FinalVerification] receiving final verification packet then responding.");
             },
-
             GlobalStatesEnrollment::ClosedEnrollment(_) | GlobalStatesEnrollment::Transitioning => todo!()
         }
     }
