@@ -176,7 +176,7 @@ impl WifiManager {
 }
 
 //Global State Communicator Manager API
-pub struct GSCManager{
+pub struct GSCManager {
     gsc_sender_handle: Sender<'static, CriticalSectionRawMutex, EnrollmentSteps, 8>,
     wtc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, WifiCommand, 8>,
 }
@@ -196,7 +196,6 @@ impl GSCManager {
                 info!("[GSCManager::send_enrollment] sending ENROLLMENT request to wifi_task.");
                 self.gsc_sender_handle.send(EnrollmentSteps::Enrollment(*pub_key)).await;
             }, 
-
             EnrollmentSteps::VerifyKeys => {} 
         }
     }

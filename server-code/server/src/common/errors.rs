@@ -5,6 +5,9 @@ use std::{io, env};
 pub enum ServerError {
     VarErr(env::VarError),
     IoErr(io::Error),
+    SerdeStrErr(serde_json::Error),
+    InvalidKeyLength(usize),
+    SqlErr(rusqlite::Error)
 }
 
 impl From<env::VarError> for ServerError {
@@ -19,3 +22,14 @@ impl From<io::Error> for ServerError {
     }
 }
 
+impl From<serde_json::Error> for ServerError {
+    fn from(error: serde_json::Error) -> Self {
+        ServerError::SerdeStrErr(error)
+    }
+}
+
+impl From<rusqlite::Error> for ServerError {
+    fn from(error: rusqlite::Error) -> Self {
+        ServerError::SqlErr(error)
+    }
+}

@@ -4,16 +4,16 @@ use tokio::{
         TcpStream,
     },
     io::Interest,
-    io
 };
-use crate::common::{
-    enums::MainFlow,
-    errors::ServerError,
-    structs::EnrollmentReceiveInital,
+use crate::{
+    common::{
+        enums::MainFlow,
+        errors::ServerError,
+    },
+    parse::parse_packet,
 };
 use std::{
     str,
-    time::Duration,
 };
 
 //Listen for tcp connection on loop back addr. 
@@ -37,8 +37,7 @@ pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
      
     //tcp_stream.readable().await;
     match tcp_stream.ready(Interest::READABLE).await {
-        println!("[networking::conn::handle_connection] choosing a match block");
-        Ok(Interest) => {
+        Ok(interest) => {
             match tcp_stream.try_read(&mut buf) {
                 Ok(0) => {
                     println!("[networking::conn::handle_connection] 0 bytes returned");
@@ -57,7 +56,11 @@ pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
                     };
                     //let v: Vec<&str> = string.split("\n").collect();
                     println!("[networking::conn::handle_connection] string res: {:?}", string);
-                    return MainFlow::Enroll(tcp_stream);
+                    let data_parsed = match parse_packet::parse(string) {
+                        Ok(data) => data,
+                        Err(_) => return MainFlow::Drop,
+                    };
+                    return MainFlow::Enroll(tcp_stream, data_parsed);
                 },
                 /*
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {

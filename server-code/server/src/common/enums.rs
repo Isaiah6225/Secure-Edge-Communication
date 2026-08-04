@@ -1,5 +1,11 @@
-use tokio::net::TcpStream;
-use crate::common::structs::EnrollmentReceiveInital;
+use tokio::{
+    net::TcpStream,
+    sync::{
+        mpsc::Receiver,
+        oneshot::Sender,
+    }
+};
+use crate::common::structs::Device;
 
 #[derive(Debug)]
 pub enum GlobalStatesEnrollment{
@@ -15,9 +21,24 @@ pub enum TimeStatus {
     Closed
 }
 
+
 #[derive(Debug)]
 pub enum MainFlow {
-    Enroll(TcpStream),
+    Enroll(TcpStream, Device),
     Drop,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum EnrollmentCheck {
+    Success, 
+    Error 
+}
+
+pub enum DBOps {
+    CheckDevice(Sender<ResultDBOps>, Device), 
+}
+
+pub enum ResultDBOps {
+    Success, 
+    Error
+}

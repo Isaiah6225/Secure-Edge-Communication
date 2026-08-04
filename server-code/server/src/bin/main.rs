@@ -1,4 +1,5 @@
 use server::{
+    database::{create_db, manage_db},
     global_state::{global_state, manage_request},
     networking::conn,
     common::{
@@ -10,7 +11,8 @@ use server::{
 };
 use tokio::{
     task,
-    net::TcpListener
+    net::TcpListener,
+    sync::mpsc
 };
 use dotenv::dotenv;
 use std::env;
@@ -18,15 +20,23 @@ use std::env;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), ServerError>{
+    //check db
+    let db_conn = create_db::create_db()?;
     let mut join_handles = vec![];
     
     //set tcp listener and extract IP from environment variables
     dotenv().ok();
     let ip = env::var("IP")?;
     let listener = TcpListener::bind(ip).await?;
+    let (tx, rx) = mpsc::channel(50);
+
     
     join_handles.push(task::spawn(async move {
+        println!("[main] spawing task to manage db connections");
+        task::spawn(manage_db::manage_db(db_conn, rx));
+
         loop {
+            let tx_c = tx.clone();
             match manage_request::manage_request(&listener).await {
                 Ok(stream) => {
                     println!("[main] spawning task to handle connection");
@@ -36,14 +46,14 @@ async fn main() -> Result<(), ServerError>{
                                 println!("Dropped connection");
                             },
 
-                            MainFlow::Enroll(stream) => {
-                                task::spawn(global_state::manage_enrollment(stream));
+                            MainFlow::Enroll(stream, data_parsed) => {
+                                task::spawn(global_state::manage_enrollment(stream, data_parsed, tx_c));
                             }
                         }
                     });
                 }
 
-                Err(e) => {
+                Err(_) => {
                     continue;
                 }
             }
