@@ -10,10 +10,10 @@ pub fn check_id(mac: &[u8; 6]) -> EnrollmentCheck {
     println!("[enrollment_checks::check_device_id::check_id] testing mac address: {:?}", mac);
 
     if cmp_1 == *mac {
-        return EnrollmentCheck::Success
-    } else if cmp_2 == *mac {
-        return EnrollmentCheck::Success
-    } else {
         return EnrollmentCheck::Error
+    } else if cmp_2 == *mac {
+        return EnrollmentCheck::Error
+    } else {
+        return EnrollmentCheck::Success
     }
 }
