@@ -39,6 +39,7 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: Device, db_tx: Se
                         let en_check = check_device_id::check_id(&data_parsed.device_id);
                         if en_check == EnrollmentCheck::Success {
                             let (tx, rx) = oneshot::channel();
+                            println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] checking device id in manage_db");
                             if let Err(_) = db_tx.send(DBOps::CheckDevice(tx, data_parsed)).await{
                                 println!("[GlobalStatesEnrollment::RespondInitial] receiver dropped when sending to manage_db");
                             };
