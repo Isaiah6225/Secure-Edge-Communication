@@ -1,8 +1,7 @@
 use crate::{
-    database::check_device_db,
+    database::{check_device_db, save_device_db},
     common::{
         enums::{DBOps, ResultDBOps},
-        structs::Device
     },
 };
 use rusqlite::Connection; 
@@ -23,12 +22,29 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
                     }, 
                     Err(_) => {
                         println!("[database::manage_db] check_device_db device not found");
-                        ResultDBOps::Error
+                        ResultDBOps::Error(device)
                     },
                 };
 
-                if let Err(_) = sender.send(check_res) {
+                if let Err(_) = sender.send(check_res).await {
                     println!("[database::manage_db] send to manage_enrollment failed. receiver dropped");
+                };
+            },
+
+            Some(DBOps::SaveDevice(sender, device, dbsave)) => {
+                let check_save = match save_device_db::save_device(&db_conn, device.device_id, device.device_pub, device.nonce, dbsave) {
+                    Ok(()) => {
+                        println!("[database::manage_db] save operation successful");
+                        ResultDBOps::Success
+                    },
+                    Err(e) => {
+                        println!("[database::manage_db] save operation failed with: {:?}", e);
+                        ResultDBOps::Error(device)
+                    },
+                };
+                
+                if let Err(_) = sender.send(check_save).await {
+                    println!("[database::manage_db] send to manage_enrollment failed receiver dropped");
                 };
             },
             None => continue,

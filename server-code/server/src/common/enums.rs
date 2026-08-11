@@ -1,17 +1,16 @@
 use tokio::{
     net::TcpStream,
     sync::{
-        oneshot::Sender,
+        mpsc::Sender,
     }
 };
+use strum::AsRefStr;
 use crate::common::structs::Device;
 
 #[derive(Debug)]
 pub enum GlobalStatesEnrollment{
-    ClosedEnrollment(TcpStream),
     RespondInitial(TcpStream), 
     FinalVerification(TcpStream),
-    Transitioning, 
 }
 
 #[derive(Debug)]
@@ -35,9 +34,17 @@ pub enum EnrollmentCheck {
 
 pub enum DBOps {
     CheckDevice(Sender<ResultDBOps>, Device),
+    SaveDevice(Sender<ResultDBOps>, Device, DBSave),
+}
+
+#[derive(AsRefStr, Debug)]
+pub enum DBSave {
+    Pending,
+    Verified,
+    Rejected
 }
 
 pub enum ResultDBOps {
     Success, 
-    Error
+    Error(Device)
 }

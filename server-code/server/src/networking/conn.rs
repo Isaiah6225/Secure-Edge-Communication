@@ -37,7 +37,7 @@ pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
      
     //tcp_stream.readable().await;
     match tcp_stream.ready(Interest::READABLE).await {
-        Ok(interest) => {
+        Ok(_) => {
             match tcp_stream.try_read(&mut buf) {
                 Ok(0) => {
                     println!("[networking::conn::handle_connection] 0 bytes returned");
@@ -51,6 +51,7 @@ pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
                     let string = match str::from_utf8(&buf[..n]) {
                         Ok(v) => v,
                         Err(e) => {
+                            println!("[networking::conn::handle_connection] error: {:?}", e);
                             return MainFlow::Drop;
                         },
                     };
@@ -62,12 +63,7 @@ pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
                     };
                     return MainFlow::Enroll(tcp_stream, data_parsed);
                 },
-                /*
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    println!("[networking::conn::handle_connection] error would block");
-                    return MainFlow::Drop;
-                }
-                */
+
                 Err(e) => {
                     println!("[networking::conn::handle_connection] error: {:?}", e);
                     return MainFlow::Drop;

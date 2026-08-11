@@ -5,7 +5,8 @@ use crate::{
             TimeStatus,
             EnrollmentCheck,
             DBOps,
-            ResultDBOps
+            ResultDBOps, 
+            DBSave
         },
         structs::Device,
     },
@@ -17,55 +18,63 @@ use crate::{
 use tokio::{
     net::TcpStream,
     sync::{
-        oneshot,
+        mpsc,
         mpsc::Sender,
     }
 };
-use std::mem;
 
 pub async fn manage_enrollment(stream: TcpStream, data_parsed: Device, db_tx: Sender<DBOps>) {
     let (check_window, _) = enrollment_time::check_window();
-    let mut state = GlobalStatesEnrollment::RespondInitial(stream);
+    let mut state = Some(GlobalStatesEnrollment::RespondInitial(stream));
     loop {
-        let swap_stream = mem::replace(&mut state, GlobalStatesEnrollment::Transitioning);
-        println!("value in swap_stream: {:?}", swap_stream);
+        let swap_stream = state.take();
         match swap_stream {
-            GlobalStatesEnrollment::RespondInitial(stream) => {
+            Some(GlobalStatesEnrollment::RespondInitial(stream)) => {
                 match check_window {
                     TimeStatus::Open => {
                         println!("[GlobalStatesEnrollment::RespondInitial] checking packet then responding.");
-                        println!("[GlobalStatesEnrollment::RespondInitial] {:?}", stream);
-
                         let en_check = check_device_id::check_id(&data_parsed.device_id);
+
                         if en_check == EnrollmentCheck::Success {
-                            let (tx, rx) = oneshot::channel();
+                            let (tx, mut rx) = mpsc::channel(10);
                             println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] checking device id in manage_db");
-                            if let Err(_) = db_tx.send(DBOps::CheckDevice(tx, data_parsed)).await{
+
+                            if let Err(_) = db_tx.send(DBOps::CheckDevice(tx.clone(), data_parsed)).await{
                                 println!("[GlobalStatesEnrollment::RespondInitial] receiver dropped when sending to manage_db");
+                                break;
                             };
 
-                            match rx.await{
+                            match rx.recv().await {
                                 //Error if device doesn't exist which it shouldn't because this is
-                                //the enrollment phase. Success if device exist which should close
+                                //the enrollment phase then enroll. Success if device exist close
                                 //the connection as the device exist. 
-                                Ok(ResultDBOps::Error) => state = GlobalStatesEnrollment::FinalVerification(stream),
-                                Ok(ResultDBOps::Success) | Err(_) => state = GlobalStatesEnrollment::ClosedEnrollment(stream),
+                                Some(ResultDBOps::Error(device)) => {
+                                    if let Err(_) = db_tx.send(DBOps::SaveDevice(tx.clone(), device, DBSave::Pending)).await{
+                                        println!("[GlobalStatesEnrollment::RespondInitial] receiver dropped when sending to manage_db");
+                                        break;
+                                    };
+                                    state = Some(GlobalStatesEnrollment::FinalVerification(stream));
+                                },
+                                Some(ResultDBOps::Success) => break,
+                                None => break,
                             };
+
                         } else {
-                            println!("[GlobalStatesEnrollment::RespondInitial] enrollment check failed moving to closed enrollment");
-                            state = GlobalStatesEnrollment::ClosedEnrollment(stream);
+                            println!("[GlobalStatesEnrollment::RespondInitial] enrollment check failed moving to closing enrollment");
+                            break;
                         }
                     }
                     TimeStatus::Closed => {
                         println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] Enrollment window closed dropping connection");    
-                        state = GlobalStatesEnrollment::ClosedEnrollment(stream);
+                        break;
                     }
                 }
             }
-            GlobalStatesEnrollment::FinalVerification(stream) => {
+            Some(GlobalStatesEnrollment::FinalVerification(stream)) => {
                 println!("[GlobalStatesEnrollment::FinalVerification] receiving final verification packet then responding.");
             },
-            GlobalStatesEnrollment::ClosedEnrollment(_) | GlobalStatesEnrollment::Transitioning => todo!()
+
+           None => break,
         }
     }
 }
