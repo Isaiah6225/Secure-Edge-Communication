@@ -18,15 +18,14 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
                 let check_res = match check_device_db::check_device_db(&db_conn, device.device_id, device.device_pub, device.nonce){
                     Ok(()) => {
                         println!("[database::manage_db] check_device_db found device");
-                        ResultDBOps::Success
+                        ()
                     }, 
-                    Err(_) => {
+                    Err(e) => {
                         println!("[database::manage_db] check_device_db device not found");
-                        ResultDBOps::Error(device)
                     },
                 };
 
-                if let Err(_) = sender.send(check_res).await {
+                if let Err(_) = sender.send(Ok(check_res)) {
                     println!("[database::manage_db] send to manage_enrollment failed. receiver dropped");
                 };
             },
@@ -43,11 +42,11 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
                     },
                 };
                 
-                if let Err(_) = sender.send(check_save).await {
+                if let Err(_) = sender.send(check_save) {
                     println!("[database::manage_db] send to manage_enrollment failed receiver dropped");
                 };
             },
-            None => continue,
+            None => break,
         };
     }
 }

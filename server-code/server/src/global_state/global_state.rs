@@ -14,11 +14,11 @@ use crate::{
         enrollment_time,
         check_device_id
     },
+    global_state::manage_db_request,
 };
 use tokio::{
     net::TcpStream,
     sync::{
-        mpsc,
         mpsc::Sender,
     }
 };
@@ -36,28 +36,7 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: Device, db_tx: Se
                         let en_check = check_device_id::check_id(&data_parsed.device_id);
 
                         if en_check == EnrollmentCheck::Success {
-                            let (tx, mut rx) = mpsc::channel(10);
-                            println!("[GlobalStatesEnrollment::EnrollmentWindowStatus] checking device id in manage_db");
-
-                            if let Err(_) = db_tx.send(DBOps::CheckDevice(tx.clone(), data_parsed)).await{
-                                println!("[GlobalStatesEnrollment::RespondInitial] receiver dropped when sending to manage_db");
-                                break;
-                            };
-
-                            match rx.recv().await {
-                                //Error if device doesn't exist which it shouldn't because this is
-                                //the enrollment phase then enroll. Success if device exist close
-                                //the connection as the device exist. 
-                                Some(ResultDBOps::Error(device)) => {
-                                    if let Err(_) = db_tx.send(DBOps::SaveDevice(tx.clone(), device, DBSave::Pending)).await{
-                                        println!("[GlobalStatesEnrollment::RespondInitial] receiver dropped when sending to manage_db");
-                                        break;
-                                    };
-                                    state = Some(GlobalStatesEnrollment::FinalVerification(stream));
-                                },
-                                Some(ResultDBOps::Success) => break,
-                                None => break,
-                            };
+                            manage_db_request::manage_check_dev(db_tx.clone(), data_parsed).await;
 
                         } else {
                             println!("[GlobalStatesEnrollment::RespondInitial] enrollment check failed moving to closing enrollment");

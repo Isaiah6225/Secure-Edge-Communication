@@ -7,7 +7,8 @@ pub enum ServerError {
     IoErr(io::Error),
     SerdeStrErr(serde_json::Error),
     InvalidKeyLength(usize),
-    SqlErr(rusqlite::Error)
+    SqlErr(rusqlite::Error),
+    OneshotRecvErr(tokio::sync::oneshot::error::RecvError),
 }
 
 impl From<env::VarError> for ServerError {
@@ -31,5 +32,11 @@ impl From<serde_json::Error> for ServerError {
 impl From<rusqlite::Error> for ServerError {
     fn from(error: rusqlite::Error) -> Self {
         ServerError::SqlErr(error)
+    }
+}
+
+impl From<tokio::sync::oneshot::error::RecvError> for ServerError {
+    fn from(error: tokio::sync::oneshot::error::RecvError) -> Self {
+        ServerError::OneshotRecvErr(error)
     }
 }
