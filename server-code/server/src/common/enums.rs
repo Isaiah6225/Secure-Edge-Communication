@@ -6,7 +6,7 @@ use tokio::{
 };
 use strum::AsRefStr;
 use crate::common::{
-    structs::Device,
+    structs::{Device, CheckDevicePayload, SaveDevicePayload},
     errors::ServerError,
 };
 
@@ -17,27 +17,14 @@ pub enum GlobalStatesEnrollment{
 }
 
 #[derive(Debug)]
-pub enum TimeStatus {
-    Open,
-    Closed
-}
-
-
-#[derive(Debug)]
 pub enum MainFlow {
     Enroll(TcpStream, Device),
     Drop,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum EnrollmentCheck {
-    Success, 
-    Error 
-}
-
 pub enum DBOps {
-    CheckDevice(Sender<Result<(), ServerError>>, Device),
-    SaveDevice(Sender<ResultDBOps>, Device, DBSave),
+    CheckDevice(Sender<Result<(), ServerError>>, CheckDevicePayload),
+    SaveDevice(Sender<Result<(), ServerError>>, SaveDevicePayload),
 }
 
 #[derive(AsRefStr, Debug)]
@@ -45,9 +32,4 @@ pub enum DBSave {
     Pending,
     Verified,
     Rejected
-}
-
-pub enum ResultDBOps {
-    Success, 
-    Error(Device)
 }

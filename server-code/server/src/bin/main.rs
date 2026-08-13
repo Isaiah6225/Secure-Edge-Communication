@@ -4,9 +4,8 @@ use server::{
     networking::conn,
     common::{
         errors::ServerError,
-        enums::{
-            MainFlow
-        }
+        enums::MainFlow,
+        structs::DBClient,
     }
 };
 use tokio::{
@@ -34,7 +33,7 @@ async fn main() -> Result<(), ServerError>{
     join_handles.push(task::spawn(async move {
         println!("[main] spawing task to manage db connections");
         task::spawn(manage_db::manage_db(db_conn, rx));
-
+        
         loop {
             let tx_c = tx.clone();
             match manage_request::manage_request(&listener).await {
@@ -47,7 +46,8 @@ async fn main() -> Result<(), ServerError>{
                             },
 
                             MainFlow::Enroll(stream, data_parsed) => {
-                                task::spawn(global_state::manage_enrollment(stream, data_parsed, tx_c));
+                                let db_client = DBClient::new(tx_c);
+                                task::spawn(global_state::manage_enrollment(stream, data_parsed, db_client));
                             }
                         }
                     });
