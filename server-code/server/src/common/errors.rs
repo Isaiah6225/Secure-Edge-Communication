@@ -10,6 +10,7 @@ pub enum ServerError {
     SqlErr(rusqlite::Error),
     OneshotRecvErr(tokio::sync::oneshot::error::RecvError),
     MpscSendErr(tokio::sync::mpsc::error::SendError<DBOps>),
+    ECDSAErr(p256::ecdsa::Error),
     EnrollmentClosedErr,
     CheckDeviceIDErr,
 }
@@ -62,5 +63,11 @@ impl From<tokio::sync::oneshot::error::RecvError> for ServerError {
 impl From<tokio::sync::mpsc::error::SendError<DBOps>> for ServerError {
     fn from(error: tokio::sync::mpsc::error::SendError<DBOps>) -> Self {
         ServerError::MpscSendErr(error)
+    }
+}
+
+impl From<p256::ecdsa::Error> for ServerError {
+    fn from(error: p256::ecdsa::Error) -> Self {
+        ServerError::ECDSAErr(error)
     }
 }
