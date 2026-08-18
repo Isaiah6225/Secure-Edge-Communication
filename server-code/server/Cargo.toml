@@ -11,6 +11,7 @@ path = "./src/bin/main.rs"
 chrono = "0.4.44"
 dotenv = "0.15.0"
 p256 = "0.14.0"
+rand = "0.10.2"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde-big-array = "0.5.1"

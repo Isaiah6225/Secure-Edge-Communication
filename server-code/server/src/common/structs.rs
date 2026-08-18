@@ -8,6 +8,13 @@ use tokio::sync::{
     mpsc::Sender,
     oneshot,
 };
+use p256::{
+    ecdsa::{SigningKey, VerifyingKey},
+};
+use rand::{
+    TryRng,
+    rngs::SysRng
+};
 
 //Device struct (data received from device, first pass)
 #[derive(Debug, Deserialize, Copy, Clone)]
@@ -58,16 +65,28 @@ impl DBClient {
         rx.await?
     }
 
-    pub async fn save_dev_db(&mut self, device_id: &[u8; 6], device_pub: &[u8; 33], nonce: &u32) -> Result<(), ServerError> {
+    pub async fn save_dev_db(&mut self, device_id: &[u8; 6], device_pub: &[u8; 33], nonce: &u32, save_op: DBSave) -> Result<(), ServerError> {
         let (tx, rx) = oneshot::channel();
-        let save_dev_payload = SaveDevicePayload { device_id: *device_id, device_pub: *device_pub, nonce: *nonce, save_op: DBSave::Pending};
+        let save_dev_payload = SaveDevicePayload { device_id: *device_id, device_pub: *device_pub, nonce: *nonce, save_op: save_op};
         self.db_sender_handle.send(DBOps::SaveDevice(tx, save_dev_payload)).await?;
         rx.await?
     }
 }
 
+#[derive(Clone)]
 pub struct CryptoClient {
-
+    pub signing_key: SigningKey,
+    pub verifying_key: VerifyingKey,
 }
 
+impl CryptoClient {
+    pub fn new(signing_key: SigningKey, verifying_key: VerifyingKey) -> Self {
+       Self { signing_key: signing_key, verifying_key: verifying_key } 
+    }
 
+    pub fn gen_server_challenge() -> Result<u32, ServerError>{
+        Ok(SysRng.try_next_u32()?)
+    }
+
+    
+}
