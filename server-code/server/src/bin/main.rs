@@ -28,9 +28,6 @@ async fn main() -> Result<(), ServerError> {
     //set tcp listener and extract IP from environment variables
     dotenv().ok();
     let ip = env::var("IP")?;
-    let signing_key_bytes = env::var("signing_key")?;
-    let init_signing_key: SigningKey = SigningKey::from_bytes(signing_key_bytes)?;
-
     let listener = TcpListener::bind(ip).await?;
     let (tx, rx) = mpsc::channel(50);
 

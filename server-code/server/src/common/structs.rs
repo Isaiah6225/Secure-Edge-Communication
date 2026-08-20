@@ -9,12 +9,14 @@ use tokio::sync::{
     oneshot,
 };
 use p256::{
-    ecdsa::{SigningKey, VerifyingKey},
+    ecdsa::{signature::DigestSigner, SigningKey, VerifyingKey, RecoveryId, Signature},
 };
 use rand::{
     TryRng,
     rngs::SysRng
 };
+use std::io::Write;
+use sha2::{Sha256, Digest};
 
 //Device struct (data received from device, first pass)
 #[derive(Debug, Deserialize, Copy, Clone)]
@@ -73,6 +75,7 @@ impl DBClient {
     }
 }
 
+//API for handling cryptography 
 #[derive(Clone)]
 pub struct CryptoClient {
     pub signing_key: SigningKey,
@@ -84,9 +87,19 @@ impl CryptoClient {
        Self { signing_key: signing_key, verifying_key: verifying_key } 
     }
 
-    pub fn gen_server_challenge() -> Result<u32, ServerError>{
+    fn gen_server_challenge() -> Result<u32, ServerError> {
         Ok(SysRng.try_next_u32()?)
     }
 
+    pub fn gen_signature_base(&self, device_id: &[u8; 6], nonce: &u32) -> Result<Vec<u8>, ServerError> {
+        let mut signature_base = Vec::new();
+        let server_challenge: u32 = Self::gen_server_challenge()?;
+        write!(&mut signature_base, "{:?}{}{}{:?}", device_id, nonce, server_challenge, self.verifying_key)?;
+        Ok(signature_base)
+    }
     
+    pub fn gen_signature(&self, signature_base: Vec<u8>) -> Result<(Signature, RecoveryId), ServerError>{
+        let (signature, recovery_id) = self.signing_key.sign_digest(|hash_handle: &mut Sha256| {hash_handle.update(&signature_base)});
+        Ok((signature, recovery_id))
+    }
 }

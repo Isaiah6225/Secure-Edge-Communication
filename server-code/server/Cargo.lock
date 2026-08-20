@@ -736,6 +736,7 @@ dependencies = [
  "serde_core",
  "serde_derive",
  "serde_json",
+ "sha2",
  "strum",
  "tokio",
 ]
