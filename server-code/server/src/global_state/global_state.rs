@@ -11,13 +11,17 @@ use crate::{
 };
 use tokio::{
     net::TcpStream,
+    io::AsyncWriteExt
 };
 use p256::{
     ecdsa::{VerifyingKey, SigningKey},
     pkcs8::{DecodePrivateKey, DecodePublicKey},
 };
+use std::fmt::Write;
 
-pub async fn manage_enrollment(stream: TcpStream, data_parsed: Device, mut db_client: DBClient) -> Result<(), ServerError>{
+
+pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: Device, mut db_client: DBClient) -> Result<(), ServerError>{
+
     //set up crypto client
     let read_verifying_key = VerifyingKey::read_public_key_pem_file("../pub_key.pem")?;
     let read_signing_key = SigningKey::read_pkcs8_pem_file("../priv_key.pem")?;
@@ -29,6 +33,13 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: Device, mut db_cl
     db_client.check_dev_db(&data_parsed.device_id, &data_parsed.device_pub).await?;
     db_client.save_dev_db(&data_parsed.device_id, &data_parsed.device_pub, &data_parsed.nonce, DBSave::Pending).await?;
     
+    //complete enrollment cryptography (server signature, signature base, and server_challenge)
+    let server_challenge = CryptoClient::gen_server_challenge()?;
+    let signature_base = crypto_client.gen_signature_base(&data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
+    let (signature, recovery_id) = crypto_client.gen_signature(signature_base)?;
+
+    //write response to device
+    stream.write(br#"{{"signature": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#, ).await?;
 
     Ok(())
 }
