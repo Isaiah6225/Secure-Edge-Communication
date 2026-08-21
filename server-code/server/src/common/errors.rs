@@ -10,6 +10,11 @@ pub enum ServerError {
     SqlErr(rusqlite::Error),
     OneshotRecvErr(tokio::sync::oneshot::error::RecvError),
     MpscSendErr(tokio::sync::mpsc::error::SendError<DBOps>),
+    ReadSigningKeyErr(p256::pkcs8::Error),
+    ReadVerifyingKeyErr(p256::pkcs8::spki::Error),
+    RandSysErr(rand::rngs::SysError),
+    ECDSAErr(p256::ecdsa::Error),
+    FmtErr(std::fmt::Error),
     EnrollmentClosedErr,
     CheckDeviceIDErr,
 }
@@ -62,5 +67,35 @@ impl From<tokio::sync::oneshot::error::RecvError> for ServerError {
 impl From<tokio::sync::mpsc::error::SendError<DBOps>> for ServerError {
     fn from(error: tokio::sync::mpsc::error::SendError<DBOps>) -> Self {
         ServerError::MpscSendErr(error)
+    }
+}
+
+impl From<p256::ecdsa::Error> for ServerError {
+    fn from(error: p256::ecdsa::Error) -> Self {
+        ServerError::ECDSAErr(error)
+    }
+}
+
+impl From<p256::pkcs8::Error> for ServerError {
+    fn from(error: p256::pkcs8::Error) -> Self {
+        ServerError::ReadSigningKeyErr(error)
+    }
+}
+
+impl From<p256::pkcs8::spki::Error> for ServerError {
+    fn from(error: p256::pkcs8::spki::Error) -> Self {
+        ServerError::ReadVerifyingKeyErr(error)
+    }
+}
+
+impl From<rand::rngs::SysError> for ServerError {
+    fn from(error: rand::rngs::SysError) -> Self {
+        ServerError::RandSysErr(error)
+    }
+}
+
+impl From<std::fmt::Error> for ServerError {
+    fn from(error: std::fmt::Error) -> Self {
+        ServerError::FmtErr(error)
     }
 }

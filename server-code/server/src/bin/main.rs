@@ -15,10 +15,12 @@ use tokio::{
 };
 use dotenv::dotenv;
 use std::env;
+use p256::ecdsa::SigningKey;
+
 
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<(), ServerError>{
+async fn main() -> Result<(), ServerError> {
     //check db
     let db_conn = create_db::create_db()?;
     let mut join_handles = vec![];
@@ -46,6 +48,7 @@ async fn main() -> Result<(), ServerError>{
                             },
 
                             MainFlow::Enroll(stream, data_parsed) => {
+                                //init db_client
                                 let db_client = DBClient::new(tx_c);
                                 task::spawn(global_state::manage_enrollment(stream, data_parsed, db_client));
                             }
