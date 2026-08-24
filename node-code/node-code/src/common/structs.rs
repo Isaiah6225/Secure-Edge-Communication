@@ -155,8 +155,9 @@ impl WifiManager {
     pub fn gen_enrollment_initial(&self, sv_key_bytes: [u8; 33]) -> SendPacketInitialEnrl {
         let mac = read_id::read_mac();
         let nonce = gen_nonce::gen_nonce();
+        let header_byte: u8 = 0;
 
-        let command = format_enrollment_initial::format_enrollment_initial(mac, sv_key_bytes, nonce);
+        let command = format_enrollment_initial::format_enrollment_initial(header_byte, mac, sv_key_bytes, nonce);
         info!("[WifiManager::gen_enrollment] generated enrollment packet and returning it.");
         command 
     }
@@ -226,6 +227,7 @@ pub async fn net_task(mut runner: Runner<'static, WifiDevice<'static>>) {
 //Enrollment Packets Struct 
 #[derive(Debug)]
 pub struct SendPacketInitialEnrl {
+    pub header_byte: u8,
     pub serialized_vkey: [u8; 33],
     pub dev_mac_add: [u8; 6], 
     pub device_nonce: u32, 

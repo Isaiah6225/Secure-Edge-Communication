@@ -1,6 +1,6 @@
 use rusqlite::{Connection, named_params};
 use crate::common::{
-    structs::Device,
+    structs::DeviceEnrl,
     errors::ServerError
 };
 
@@ -14,7 +14,7 @@ pub fn check_device_db(
        ":mac_address": dev_id,
        ":pub_key": dev_pub,
     }, |row| {
-        Ok(Device {
+        Ok(DeviceEnrl {
             device_id: row.get(0)?,
             device_pub: row.get(1)?,
             nonce: row.get(2)?,

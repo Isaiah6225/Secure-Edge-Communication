@@ -17,19 +17,16 @@ pub enum ServerError {
     FmtErr(std::fmt::Error),
     EnrollmentClosedErr,
     CheckDeviceIDErr,
+    MissingHeaderByteErr,
 }
 
 impl Display for ServerError{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        /*
-        if let ServerError::EnrollmentClosedErr = self {
-            write!(f, "enrollment window closed")
-        }
-        */
         match self {
             ServerError::EnrollmentClosedErr => write!(f, "enrollment window closed"),
             ServerError::CheckDeviceIDErr => write!(f, "check device id failed"),
-            _=>Ok(())
+            ServerError::MissingHeaderByteErr => write!(f, "received packet is missing the header byte"),
+            _=> Ok(())
         }
     }
 }
