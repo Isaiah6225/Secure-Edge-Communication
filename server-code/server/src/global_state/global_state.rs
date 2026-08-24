@@ -1,7 +1,7 @@
 use crate::{
     common::{
-        structs::{Device, DBClient, CryptoClient},
-        enums::DBSave,
+        structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient},
+        enums::DBSave, 
         errors::ServerError
     },
     enrollment_checks::{
@@ -17,10 +17,8 @@ use p256::{
     ecdsa::{VerifyingKey, SigningKey},
     pkcs8::{DecodePrivateKey, DecodePublicKey},
 };
-use std::fmt::Write;
 
-
-pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: Device, mut db_client: DBClient) -> Result<(), ServerError>{
+pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, mut db_client: DBClient) -> Result<(), ServerError>{
 
     //set up crypto client
     let read_verifying_key = VerifyingKey::read_public_key_pem_file("../pub_key.pem")?;
@@ -42,4 +40,8 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: Device, mut d
     stream.write(br#"{{"signature": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#, ).await?;
 
     Ok(())
+}
+
+pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: DeviceStdComm, mut db_client: DBClient) -> Result<(), ServerError>{
+    todo!(); 
 }
