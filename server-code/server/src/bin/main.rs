@@ -4,7 +4,7 @@ use server::{
     networking::conn,
     common::{
         errors::ServerError,
-        enums::MainFlow,
+        enums::{MainFlow, ParsedStruct},
         structs::DBClient,
     }
 };
@@ -15,7 +15,6 @@ use tokio::{
 };
 use dotenv::dotenv;
 use std::env;
-
 
 
 #[tokio::main(flavor = "multi_thread")]
@@ -49,7 +48,12 @@ async fn main() -> Result<(), ServerError> {
                             MainFlow::Enroll(stream, data_parsed) => {
                                 //init db_client
                                 let db_client = DBClient::new(tx_c);
-                                task::spawn(global_state::manage_enrollment(stream, data_parsed, db_client));
+
+                                match data_parsed {
+                                    ParsedStruct::DeviceEnrlParsed(data) => {task::spawn(global_state::manage_enrollment(stream, data, db_client));},
+                                    ParsedStruct::DeviceStdCommParsed(data) => {task::spawn(global_state::manage_standard_communication(stream, data, db_client));}
+                                }
+                                
                             }
                         }
                     });

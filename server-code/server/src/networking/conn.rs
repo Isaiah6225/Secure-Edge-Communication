@@ -7,7 +7,7 @@ use tokio::{
 };
 use crate::{
     common::{
-        enums::MainFlow,
+        enums::{MainFlow, ParsedStruct},
         errors::ServerError,
     },
     parse::parse_packet,

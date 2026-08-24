@@ -16,15 +16,47 @@ use rand::{
     rngs::SysRng
 };
 
-//Device struct (data received from device, first pass)
+//DeviceStdComm struct (data received from device, second pass)
 #[derive(Debug, Deserialize, Copy, Clone)]
-pub struct Device {
+pub struct DeviceStdComm {
     #[serde(rename = "device_id")]
     pub device_id: [u8; 6],
     #[serde(rename = "device_pub", with = "BigArray")]
     pub device_pub: [u8; 33],
     #[serde(rename = "nonce")]
     pub nonce: u32 
+}
+
+impl DeviceStdComm {
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, ServerError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
+}
+
+//DeviceEnrl struct (data received from device, first pass)
+#[derive(Debug, Deserialize, Copy, Clone)]
+pub struct DeviceEnrl {
+    #[serde(rename = "device_id")]
+    pub device_id: [u8; 6],
+    #[serde(rename = "device_pub", with = "BigArray")]
+    pub device_pub: [u8; 33],
+    #[serde(rename = "nonce")]
+    pub nonce: u32 
+}
+
+impl DeviceEnrl {
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, ServerError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
+}
+
+//Parse header byte
+#[derive(Debug, Deserialize, Copy, Clone)]
+pub struct Device {
+    #[serde(rename = "header_byte")]
+    pub header_byte: u8,
 }
 
 impl Device {
