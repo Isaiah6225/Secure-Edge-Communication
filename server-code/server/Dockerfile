@@ -37,8 +37,8 @@ USER appuser
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
 COPY .cargo/config.toml ./.cargo/config.toml
-COPY priv_key.pem ./ 
-COPY pub_key.pem ./
+COPY priv_key.pem /bin/ 
+COPY pub_key.pem /bin/
 
 ENV IP=0.0.0.0:7979
 
