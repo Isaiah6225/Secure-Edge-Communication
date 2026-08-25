@@ -13,6 +13,8 @@ pub enum ServerError {
     ReadSigningKeyErr(p256::pkcs8::Error),
     ReadVerifyingKeyErr(p256::pkcs8::spki::Error),
     RandSysErr(rand::rngs::SysError),
+    ECDSAErr(p256::ecdsa::Error),
+    FmtErr(std::fmt::Error),
     EnrollmentClosedErr,
     CheckDeviceIDErr,
     MissingHeaderByteErr,
@@ -64,7 +66,13 @@ impl From<tokio::sync::mpsc::error::SendError<DBOps>> for ServerError {
         ServerError::MpscSendErr(error)
     }
 }
- 
+
+impl From<p256::ecdsa::Error> for ServerError {
+    fn from(error: p256::ecdsa::Error) -> Self {
+        ServerError::ECDSAErr(error)
+    }
+}
+
 impl From<p256::pkcs8::Error> for ServerError {
     fn from(error: p256::pkcs8::Error) -> Self {
         ServerError::ReadSigningKeyErr(error)
@@ -80,5 +88,11 @@ impl From<p256::pkcs8::spki::Error> for ServerError {
 impl From<rand::rngs::SysError> for ServerError {
     fn from(error: rand::rngs::SysError) -> Self {
         ServerError::RandSysErr(error)
+    }
+}
+
+impl From<std::fmt::Error> for ServerError {
+    fn from(error: std::fmt::Error) -> Self {
+        ServerError::FmtErr(error)
     }
 }

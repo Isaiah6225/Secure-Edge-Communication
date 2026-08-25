@@ -15,6 +15,7 @@ use tokio::{
 };
 use dotenv::dotenv;
 use std::env;
+use p256::ecdsa::SigningKey;
 
 
 #[tokio::main(flavor = "multi_thread")]
