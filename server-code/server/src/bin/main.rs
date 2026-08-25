@@ -51,8 +51,14 @@ async fn main() -> Result<(), ServerError> {
                                 let db_client = DBClient::new(tx_c);
 
                                 match data_parsed {
-                                    ParsedStruct::DeviceEnrlParsed(data) => {task::spawn(global_state::manage_enrollment(stream, data, db_client));},
-                                    ParsedStruct::DeviceStdCommParsed(data) => {task::spawn(global_state::manage_standard_communication(stream, data, db_client));}
+                                    ParsedStruct::DeviceEnrlParsed(data) => {
+                                        println!("[main] moving to enrollment flow"); 
+                                        task::spawn(global_state::manage_enrollment(stream, data, db_client));
+                                    },
+                                    ParsedStruct::DeviceStdCommParsed(data) => {
+                                        println!("[main] moving to standard communication flow");
+                                        task::spawn(global_state::manage_standard_communication(stream, data, db_client));
+                                    }
                                 }
                                 
                             }

@@ -94,8 +94,8 @@ pub async fn wifi_task(
 
                                     if let Ok(_) = write!(
                                         init_send_buffer,
-                                        r#"{{"device_id": {:?}, "device_pub": {:?}, "nonce": {}}}"#,
-                                        init_packet.dev_mac_add, init_packet.serialized_vkey, init_packet.device_nonce
+                                        r#"{{"device_id": {:?}, "device_pub": {:?}, "nonce": {}, "header_byte": {}}}"#,
+                                        init_packet.dev_mac_add, init_packet.serialized_vkey, init_packet.device_nonce, init_packet.header_byte
                                     ) {
                                         info!("[wifi_task] EnrollmentSteps::Initial] successfully wrote data to buffer");
                                         info!("[wifi_task] EnrollmentSteps::Initial] buffer: {:?}", init_send_buffer);
