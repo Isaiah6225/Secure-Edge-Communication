@@ -8,9 +8,9 @@ WORKDIR /app
 #install host build dependencies 
 RUN apk add --no-cache clang lld musl-dev git
 
-RUN --mount=type=bind,source=src,target=src,z \
-    --mount=type=bind,source=Cargo.toml,target=Cargo.toml,z \
-    --mount=type=bind,source=Cargo.lock,target=Cargo.lock,z \
+RUN --mount=type=bind,source=src,target=src \
+    --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
+    --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
     --mount=type=cache,target=/app/target/ \
     --mount=type=cache,target=/usr/local/cargo/git/db \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
@@ -37,6 +37,8 @@ USER appuser
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
 COPY .cargo/config.toml ./.cargo/config.toml
+COPY priv_key.pem ./ 
+COPY pub_key.pem ./
 
 ENV IP=0.0.0.0:7979
 
