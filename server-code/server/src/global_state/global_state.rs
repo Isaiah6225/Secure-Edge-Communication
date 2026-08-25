@@ -17,10 +17,6 @@ use p256::{
     ecdsa::{VerifyingKey, SigningKey},
     pkcs8::{DecodePrivateKey, DecodePublicKey},
 };
-use p256::{
-    ecdsa::{VerifyingKey, SigningKey},
-    pkcs8::{DecodePrivateKey, DecodePublicKey},
-};
 
 pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, mut db_client: DBClient) -> Result<(), ServerError>{
     //set up crypto client
