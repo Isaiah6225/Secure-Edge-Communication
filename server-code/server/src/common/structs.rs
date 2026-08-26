@@ -130,7 +130,7 @@ impl CryptoClient {
         Ok(signature_base)
     }
     
-    pub fn gen_signature(&self, signature_base: Vec<u8>) -> Result<(Signature, RecoveryId), ServerError>{
+    pub fn gen_signature(&self, signature_base: &Vec<u8>) -> Result<(Signature, RecoveryId), ServerError>{
         let (signature, recovery_id) = self.signing_key.sign_digest(|hash_handle: &mut Sha256| {hash_handle.update(&signature_base)});
         Ok((signature, recovery_id))
     }

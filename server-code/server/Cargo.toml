@@ -10,6 +10,7 @@ path = "./src/bin/main.rs"
 [dependencies]
 chrono = "0.4.44"
 dotenv = "0.15.0"
+heapless = "0.9.3"
 p256 = "0.14.0"
 rand = "0.10.2"
 rusqlite = { version = "0.40.1", features = ["bundled"] }

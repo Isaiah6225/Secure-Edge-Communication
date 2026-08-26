@@ -17,6 +17,8 @@ use p256::{
     ecdsa::{VerifyingKey, SigningKey},
     pkcs8::{DecodePrivateKey, DecodePublicKey},
 };
+use heapless::String;
+use std::fmt::Write;
 
 pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, mut db_client: DBClient) -> Result<(), ServerError>{
     //set up crypto client
@@ -36,10 +38,17 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
     println!("[manage_enrollment] completing initial enrollment cryptography");
     let server_challenge = CryptoClient::gen_server_challenge()?;
     let signature_base = crypto_client.gen_signature_base(&data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
-    let (signature, recovery_id) = crypto_client.gen_signature(signature_base)?;
+    let (signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
 
     //write response to device
-    stream.write(br#"{{"signature": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#, ).await?;
+    let mut init_send_buffer = String::<1024>::new();
+    write!(
+        init_send_buffer,
+        r#"{{"signature": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#,
+        signature, signature_base, server_challenge
+    )?;
+
+    stream.write(init_send_buffer.as_bytes()).await?;
     Ok(())
 }
 
