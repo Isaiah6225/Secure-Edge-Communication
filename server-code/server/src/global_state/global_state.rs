@@ -21,8 +21,8 @@ use p256::{
 pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, mut db_client: DBClient) -> Result<(), ServerError>{
     //set up crypto client
     println!("[manage_enrollment] setting up crypto client");
-    let read_verifying_key = VerifyingKey::read_public_key_pem_file("../pub_key.pem")?;
-    let read_signing_key = SigningKey::read_pkcs8_pem_file("../priv_key.pem")?;
+    let read_verifying_key = VerifyingKey::read_public_key_pem_file(".cargo/pub_key.pem")?;
+    let read_signing_key = SigningKey::read_pkcs8_pem_file(".cargo/priv_key.pem")?;
     let crypto_client = CryptoClient::new(read_signing_key, read_verifying_key); 
 
     //complete enrollment checks
