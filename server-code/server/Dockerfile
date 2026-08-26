@@ -36,10 +36,7 @@ USER appuser
 
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
-COPY .cargo/ ./.cargo/
-#COPY .cargo/config.toml ./.cargo/config.toml
-#COPY priv_key.pem .cargo/priv
-#COPY pub_key.pem /bin/
+COPY .cargo/config.toml ./.cargo/config.toml
 
 ENV IP=0.0.0.0:7979
 
@@ -49,6 +46,9 @@ EXPOSE 7979
 WORKDIR /app/src 
 
 RUN chown appuser /app/src
+
+COPY priv_key.pem /app/src
+COPY pub_key.pem /app/src
 
 # What the container should run when it is started.
 CMD ["/bin/server"]
