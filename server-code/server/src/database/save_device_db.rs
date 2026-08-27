@@ -16,5 +16,6 @@ pub fn save_device(
         "INSERT INTO device (mac_address, pub_key, nonce, enrollment_status) VALUES (?1, ?2, ?3, ?4)",
         (dev_id, dev_pub, nonce, save_op.as_ref()),
     )?;
+    println!("[database::save_device_db] saved device successfully");
     Ok(())
 }

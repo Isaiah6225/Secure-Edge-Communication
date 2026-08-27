@@ -128,12 +128,13 @@ pub async fn wifi_task(
                             info!("[wifi_task EnrollmentSteps::FinalVerification] awaitng bytes in rx buf");
                         
                             match tcp_socket.read(&mut read_buffer).await {
+                                /*
                                 Ok(0) => {
                                     info!("[wifi_task EnrollmentSteps::FinalVerification] 0 bytes from read");
                                     wtc_sender_handle.send(WifiCommand::Failure).await; 
                                     break 'session;
                                 }
-
+                                */
                                 Ok(len) => {
                                     let received_data = &read_buffer[..len];
                                     if let Ok(s) = core::str::from_utf8(received_data) {
