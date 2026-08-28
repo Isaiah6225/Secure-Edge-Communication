@@ -18,6 +18,7 @@ pub enum ServerError {
     EnrollmentClosedErr,
     CheckDeviceIDErr,
     MissingHeaderByteErr,
+    DeviceExistErr,
 }
 
 impl Display for ServerError{
@@ -26,6 +27,7 @@ impl Display for ServerError{
             ServerError::EnrollmentClosedErr => write!(f, "enrollment window closed"),
             ServerError::CheckDeviceIDErr => write!(f, "check device id failed"),
             ServerError::MissingHeaderByteErr => write!(f, "received packet is missing the header byte"),
+            ServerError::DeviceExistErr => write!(f, "device exist in device_registry.db"),
             _=> Ok(())
         }
     }

@@ -96,7 +96,16 @@ impl DBClient {
         let (tx, rx) = oneshot::channel();
         let check_dev_payload = CheckDevicePayload { device_id: *device_id, device_pub: *device_pub };
         self.db_sender_handle.send(DBOps::CheckDevice(tx, check_dev_payload)).await?;
-        rx.await?
+        match rx.await {
+            Ok(res) => {
+                println!("[db_client::check_dev_db] {:?}", res);
+                return res
+            },
+            Err(e)=> {
+                println!("not cool man");
+                return Err(ServerError::OneshotRecvErr(e))
+            },
+        }
     }
 
     pub async fn save_dev_db(&mut self, device_id: &[u8; 6], device_pub: &[u8; 33], nonce: &u32, save_op: DBSave) -> Result<(), ServerError> {
