@@ -1,6 +1,9 @@
 use crate::{
     database::{check_device_db, save_device_db},
-    common::enums::DBOps,
+    common::{
+        enums::DBOps,
+        errors::ServerError
+    },
 };
 use rusqlite::Connection; 
 use tokio::sync::mpsc::Receiver;
@@ -14,14 +17,15 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
                 let check_res = match check_device_db::check_device_db(&db_conn, device.device_id, device.device_pub){
                     Ok(()) => {
                         println!("[database::manage_db] check_device_db found device");
-                        ()
+                        Err(ServerError::DeviceExistErr)
                     }, 
                     Err(e) => {
-                        println!("[database::manage_db] check_device_db device not found");
+                        println!("[database::manage_db] check_device_db device not found with: {:?}", e);
+                        Ok(())
                     },
                 };
 
-                if let Err(_) = sender.send(Ok(check_res)) {
+                if let Err(_) = sender.send(check_res) {
                     println!("[database::manage_db] send to manage_enrollment failed. receiver dropped");
                 };
             },

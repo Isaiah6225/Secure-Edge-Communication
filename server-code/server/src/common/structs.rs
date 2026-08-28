@@ -99,7 +99,7 @@ impl DBClient {
         match rx.await {
             Ok(res) => {
                 println!("[db_client::check_dev_db] {:?}", res);
-                return res
+                res
             },
             Err(e)=> {
                 println!("not cool man");
