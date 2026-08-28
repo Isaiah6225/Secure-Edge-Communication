@@ -31,7 +31,7 @@ pub async fn wifi_task(
     //set socket buffers and setting write retry count
     let mut rx_buffer = [0; 1536];
     let mut tx_buffer = [0; 1536];
-    let mut read_buffer = [0u8; 1024];
+    let mut read_buffer = [0u8; 2048];
     let mut write_retry_count = 0;
 
     info!("[wifi_task] starting wifi set up and send process");
