@@ -20,6 +20,10 @@ pub fn check_device_db(
             nonce: row.get(2)?,
         })
     })?;
-    println!("[database::check_device_db] Device from database: {:?}", device_iter);
+    for dev in device_iter {
+        if let Ok(found_dev) = dev {
+            println!("[database::check_device_db] Dev: {:?}", found_dev);
+        }
+    }
     Ok(())
 }
