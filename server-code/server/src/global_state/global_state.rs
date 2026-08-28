@@ -47,7 +47,7 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
         r#"{{"signature": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#,
         signature, signature_base, server_challenge
     )?;
-
+    println!("[manage_enrollment] init_send_buffer: {:?}", init_send_buffer);
     stream.write(init_send_buffer.as_bytes()).await?;
     Ok(())
 }
