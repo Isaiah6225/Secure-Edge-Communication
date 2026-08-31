@@ -15,13 +15,18 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
             Some(DBOps::CheckDevice(sender, device)) => {
                //receive device struct from global_state and check device in db 
                 let check_res = match check_device_db::check_device_db(&db_conn, device.device_id, device.device_pub){
-                    Ok(()) => {
-                        println!("[database::manage_db] check_device_db found device");
-                        Err(ServerError::DeviceExistErr)
+                    Ok(device_exists) => {
+                        if device_exists == true {
+                            println!("[database::manage_db] check_device_db device found");
+                            Err(ServerError::DeviceExistErr)
+                        } else {
+                            println!("[database::manage_db] check_device_db device not found");
+                            Ok(())
+                        }
                     }, 
                     Err(e) => {
-                        println!("[database::manage_db] check_device_db device not found with: {:?}", e);
-                        Ok(())
+                        println!("[database::manage_db] error from check_device_db: {:?}", e);
+                        Err(e)
                     },
                 };
 
