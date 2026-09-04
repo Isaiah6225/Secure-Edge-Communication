@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use crate::common::{
     errors::ServerError,
@@ -15,7 +15,9 @@ use rand::{
     TryRng,
     rngs::SysRng
 };
-use std::io::Write;
+use std::{
+    io::Write
+};
 use sha2::{Sha256, Digest};
 
 //DeviceStdComm struct (data received from device, second pass)
@@ -33,6 +35,21 @@ impl DeviceStdComm {
     pub fn new<T: AsRef<str>>(string: T) -> Result<Self, ServerError>{
         let res = serde_json::from_str(string.as_ref())?;
         Ok(res)
+    }
+}
+
+//ServerEnrl struct (data sent from server, first pass)
+#[derive(Debug, Serialize)]
+pub struct ServerEnrl {
+    pub signature_base: Vec<u8>,
+    pub server_challenge: u32, 
+    #[serde(rename = "signature_bytes", with = "BigArray")]
+    pub signature_bytes: [u8; 64], 
+}
+
+impl ServerEnrl {
+    pub fn new(signature_base: Vec<u8>, server_challenge: u32, signature_bytes: [u8; 64]) -> Self {
+        Self { signature_base: signature_base, server_challenge: server_challenge, signature_bytes: signature_bytes } 
     }
 }
 
@@ -144,3 +161,5 @@ impl CryptoClient {
         Ok((signature, recovery_id))
     }
 }
+
+

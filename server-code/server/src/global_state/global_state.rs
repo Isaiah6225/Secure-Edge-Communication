@@ -1,6 +1,6 @@
 use crate::{
     common::{
-        structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient},
+        structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient, ServerEnrl},
         enums::DBSave, 
         errors::ServerError
     },
@@ -39,16 +39,23 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
     let server_challenge = CryptoClient::gen_server_challenge()?;
     let signature_base = crypto_client.gen_signature_base(&data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
     let (signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
+    let signature_bytes: [u8; 64] = &signature.to_bytes();
+
+    let se = ServerEnrl::new(signature_base, server_challenge, signature_bytes);
+    let init_payload = serde_json::to_string(&se);
 
     //write response to device
     let mut init_send_buffer = String::<1024>::new();
+    /*
     write!(
         init_send_buffer,
         r#"{{"signature": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#,
         signature, signature_base, server_challenge
     )?;
-    println!("[manage_enrollment] init_send_buffer: {:?}", init_send_buffer);
-    stream.write(init_send_buffer.as_bytes()).await?;
+    */
+
+    println!("[manage_enrollment] init_payload: {:?}", init_payload);
+    stream.write_all(init_payload?.as_bytes()).await?;
     Ok(())
 }
 

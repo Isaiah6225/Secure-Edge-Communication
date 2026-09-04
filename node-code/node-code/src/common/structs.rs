@@ -38,6 +38,7 @@ use crate::{
 use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
 use rand_core_new::RngCore as RngCoreNew;
 use log::info;
+use serde::Deserialize;
 
 extern crate alloc;
 
@@ -238,4 +239,13 @@ impl Display for SendPacketInitialEnrl {
         write!(f, "serialized_vkey: {:?}, dev_mac_add: {:?}, device_nonce: {}", self.serialized_vkey, self.dev_mac_add, self.device_nonce)
     }
 }
-
+/*
+#[derive(Debug, Deserialize)]
+pub struct ReceivePacketInitialEnrl {
+    #[serde(rename = "server_signature")]
+    pub server_signature: ,
+    pub server_signature_base: 
+    pub server_challenge: 
+    pub server_vkey: 
+*/
+}

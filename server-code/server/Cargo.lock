@@ -753,6 +753,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "dotenv",
+ "elliptic-curve",
  "heapless",
  "p256",
  "rand",

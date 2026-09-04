@@ -29,9 +29,9 @@ pub async fn wifi_task(
     ip_address: Ipv4Address
 ) {
     //set socket buffers and setting write retry count
-    let mut rx_buffer = [0; 1536];
-    let mut tx_buffer = [0; 1536];
-    let mut read_buffer = [0u8; 2048];
+    let mut rx_buffer = [0; 2536];
+    let mut tx_buffer = [0; 2536];
+    let mut read_buffer = [0; 2536];
     let mut write_retry_count = 0;
 
     info!("[wifi_task] starting wifi set up and send process");
@@ -126,7 +126,6 @@ pub async fn wifi_task(
                              */
 
                             info!("[wifi_task EnrollmentSteps::FinalVerification] awaitng bytes in rx buf");
-                        
                             match tcp_socket.read(&mut read_buffer).await {
                                 /*
                                 Ok(0) => {
@@ -137,6 +136,8 @@ pub async fn wifi_task(
                                 */
                                 Ok(len) => {
                                     let received_data = &read_buffer[..len];
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] raw received data: {:?}", received_data);
+
                                     if let Ok(s) = core::str::from_utf8(received_data) {
                                         info!("[wifi_task EnrollmentSteps::FinalVerification] received data from remote server with {:?}", s); 
                                     }
