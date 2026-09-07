@@ -10,6 +10,7 @@ use embassy_time::{Duration, Timer};
 use esp_nvs::{
     Nvs,
     Key,
+
     platform::Platform,
 };
 use esp_hal::{
@@ -38,6 +39,8 @@ use crate::{
 use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
 use rand_core_new::RngCore as RngCoreNew;
 use log::info;
+use serde::Deserialize;
+use serde_big_array::BigArray;
 
 extern crate alloc;
 
@@ -48,7 +51,7 @@ impl RngCoreOld for TrngWrapper {
     fn next_u32(&mut self) -> u32{
         RngCoreNew::next_u32(&mut self.0) 
     }
-
+G
     fn next_u64(&mut self) -> u64 {
         RngCoreNew::next_u64(&mut self.0)
     }
@@ -221,6 +224,23 @@ impl GSCManager {
 #[embassy_executor::task]
 pub async fn net_task(mut runner: Runner<'static, WifiDevice<'static>>) {
     runner.run().await;
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReceivePacketInitialEnrl {
+    #[serde(rename = "signature_bytes", with = "BigArray")]
+    pub signature_bytes: [u8; 64],
+    #[serde(rename = "signature_base")]
+    pub signature_base: Vec<u8>,
+    #[serde(rename = "server_challenge")]
+    pub server_challenge: u32,
+}
+
+impl ReceivePacketInitialEnrl {
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, NodeError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
 }
 
 

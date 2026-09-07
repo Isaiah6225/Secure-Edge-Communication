@@ -3,6 +3,7 @@
 /target/
 /.env 
 device_registry.db
+*pem
 
 # Editor configuration
 .vscode/

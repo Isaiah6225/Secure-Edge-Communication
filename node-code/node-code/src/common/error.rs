@@ -8,6 +8,7 @@ pub enum NodeError {
     Rng(TrngError),
     NvsError(esp_nvs::error::Error),
     InvalidKeyLength(usize),
+    SerdeErr(serde_json::Error),
 }
 
 impl From<TrngError> for NodeError {
@@ -19,6 +20,12 @@ impl From<TrngError> for NodeError {
 impl From<esp_nvs::error::Error> for NodeError {
     fn from(error: esp_nvs::error::Error) -> Self {
         NodeError::NvsError(error)
+    }
+}
+
+impl From<serde_json::Error> for NodeError {
+    fn from(error: serde_json::Error) -> Self {
+        NodeError::SerdeErr(error)
     }
 }
 

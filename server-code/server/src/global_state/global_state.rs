@@ -39,13 +39,14 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
     let server_challenge = CryptoClient::gen_server_challenge()?;
     let signature_base = crypto_client.gen_signature_base(&data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
     let (signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
-    let signature_bytes = &signature.to_bytes();
+
+    let signature_bytes = &signature.to_vec();
 
     //write response to device
-    let mut init_send_buffer = String::<1024>::new();
+    let mut init_send_buffer = String::<2048>::new();
     if let Err(e) = write!(
         init_send_buffer,
-        r#"{{"signature_bytes": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#,
+        r#"{{"signature_bytes": "{:?}", "signature_base": {:?}, "server_challenge": {:?}}}"#,
         signature_bytes, signature_base, server_challenge
     ){
         println!("[manage_enrollment] error from write {:?}", e);

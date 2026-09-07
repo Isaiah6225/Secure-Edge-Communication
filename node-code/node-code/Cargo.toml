@@ -73,6 +73,9 @@ esp-storage = "0.8.1"
 esp-nvs = {version = "0.4.0", default-features = false, features = ["esp32s3"]}
 embassy-sync = "0.8.0"
 heapless = "0.9.3"
+serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0.151", default-features = false, features = ["alloc"] }
+serde-big-array = {version = "0.5.1", default-features = false }
 
 
 [profile.dev]
