@@ -14,7 +14,7 @@ use embassy_sync::{
 use crate::{
     common::{
         enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
-        structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl},
+        structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl, CryptoClient},
     },
 };
 use log::info;
@@ -26,12 +26,13 @@ pub async fn wifi_task(
     gsc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, EnrollmentSteps, 8>,
     wtc_sender_handle: Sender<'static, CriticalSectionRawMutex, WifiCommand, 8>,
     mut wc_rec0: ReceiverWatch<'static, CriticalSectionRawMutex, WifiConfigStatus, 1>,
-    ip_address: Ipv4Address
+    ip_address: Ipv4Address, 
+    crypto_client: CryptoClient
 ) {
     //set socket buffers and setting write retry count
-    let mut rx_buffer = [0; 3096];
+    let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 1536];
-    let mut read_buffer = [0u8; 2048];
+    let mut read_buffer = [0u8; 4096];
     let mut write_retry_count = 0;
 
     info!("[wifi_task] starting wifi set up and send process");
@@ -52,15 +53,13 @@ pub async fn wifi_task(
                     match state {
                         EnrollmentSteps::Enrollment(ecdsa_pub_key) => {
                             /*
-                             INITIAL SEND
-                             */
+                            INITIAL SEND
+                            */
 
                             info!("[wifi_task EnrollmentSteps::Enrollment]"); 
                             //create socket with buffers
                             let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
                             tcp_socket.set_timeout(Some(Duration::from_secs(10)));
-
-                                
 
                             //format initial packet 
                             let init_packet = manage_wifi.gen_enrollment_initial(ecdsa_pub_key); 
@@ -123,20 +122,19 @@ pub async fn wifi_task(
                             
                             /*
                             FINAL VERIFICATION 
-                             */
+                            */
 
                             info!("[wifi_task EnrollmentSteps::FinalVerification] awaitng bytes in rx buf");
-                        
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(len) => {
                                     let received_data = &read_buffer[..len];
-                                    
                                     if let Ok(s) = core::str::from_utf8(received_data) {
                                         info!("[wifi_task EnrollmentSteps::FinalVerification] received data from remote server with {:?}", s); 
                                         let parsed_receive_data = ReceivePacketInitialEnrl::new(s);
                                         info!("[wifi_task EnrollmentSteps::FinalVerification] parsed_data {:?}", parsed_receive_data);
+                                        
+
                                     }
-                                   
                                 }
                                 
                                 Err(e) => {

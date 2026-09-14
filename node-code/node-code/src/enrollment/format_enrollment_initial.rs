@@ -3,7 +3,6 @@
 use crate::{
     common::{
         structs::SendPacketInitialEnrl,
-        enums::WifiData,
     },
 };
 use log::info;

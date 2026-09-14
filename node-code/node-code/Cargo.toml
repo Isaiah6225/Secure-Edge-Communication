@@ -9,12 +9,9 @@ name = "node-code"
 path = "./src/bin/main.rs"
 
 [dependencies]
-rand_core_old = { package = "rand_core", version = "0.6.4" }
-rand_core_new = { package = "rand_core", version = "0.9.5" }
+esp-hal = { version = "~1.1.0", features = ["esp32s3", "log-04", "unstable"] }
 
-esp-hal = { version = "1.0.0", features = ["esp32s3", "log-04", "unstable"] }
-
-esp-rtos = { version = "0.2.0", features = [
+esp-rtos = { version = "0.3.0", features = [
   "embassy",
   "esp-alloc",
   "esp-radio",
@@ -22,10 +19,10 @@ esp-rtos = { version = "0.2.0", features = [
   "log-04",
 ] }
 
-esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32s3", "log-04"] }
+esp-bootloader-esp-idf = { version = "0.5.0", features = ["esp32s3", "log-04"] }
 log                    = "0.4.27"
 
-embassy-net = { version = "0.7.1", features = [
+embassy-net = { version = "0.9.1", features = [
   "dhcpv4",
   "log",
   "medium-ethernet",
@@ -35,18 +32,17 @@ embassy-net = { version = "0.7.1", features = [
 embedded-io = "0.7.1"
 embedded-io-async = "0.7.0"
 esp-alloc = {version = "0.9.0", features = ["nightly"]}
-esp-println = { version = "0.16.1", features = ["esp32s3", "log-04"] }
+esp-println = { version = "0.17.0", features = ["esp32s3", "log-04"] }
 # for more networking protocol support see https://crates.io/crates/edge-net
 bt-hci = "0.6.0"
-embassy-executor = { version = "0.9.1", features = ["log"] }
+embassy-executor = { version = "=0.10.0", features = ["log"] }
 embassy-time = { version = "0.5.0", features = ["log"] }
-esp-radio = { version = "0.17.0", features = [
+esp-radio = { version = "0.18.0", features = [
   "ble",
   "coex",
   "esp-alloc",
   "esp32s3",
   "log-04",
-  "smoltcp",
   "unstable",
   "wifi",
 ] }
@@ -67,8 +63,7 @@ trouble-host = { version = "0.5.0", features = ["gatt"] }
 
 critical-section = "1.2.0"
 static_cell      = "2.1.1"
-p256 = {version = "0.13.2", default-features = false, features = ["ecdh", "ecdsa"]}
-elliptic-curve = {version = "0.13.7", default-features = false, features = ["ecdh"]}
+elliptic-curve = { version = "=0.14.1", default-features = false, features = ["ecdh"]}
 esp-storage = "0.8.1"
 esp-nvs = {version = "0.4.0", default-features = false, features = ["esp32s3"]}
 embassy-sync = "0.8.0"
@@ -76,6 +71,7 @@ heapless = "0.9.3"
 serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.151", default-features = false, features = ["alloc"] }
 serde-big-array = {version = "0.5.1", default-features = false }
+p256 = { version = "0.14.0", default-features = false, features = ["alloc", "ecdsa", "ecdsa-core", "pem", "pkcs8"] }
 
 
 [profile.dev]

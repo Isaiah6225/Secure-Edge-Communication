@@ -21,56 +21,30 @@ use core::{
     fmt,
 };
 use alloc::vec::Vec;
-use esp_hal::rng::Trng;
-use esp_radio::wifi::{
-    WifiDevice
-};
+use esp_radio::wifi::Interface;
 use crate::{
     enrollment::format_enrollment_initial,
     common::{
         error::NodeError,
-        enums::{EnrollmentSteps, WifiData, WifiCommand},
+        enums::{EnrollmentSteps, WifiCommand},
     },
     boot::{
         read_id,
     },
     nonce::gen_nonce,
 };
-use rand_core_old::{RngCore as RngCoreOld, CryptoRng as CryptoRngOld}; 
-use rand_core_new::RngCore as RngCoreNew;
 use log::info;
 use serde::Deserialize;
 use serde_big_array::BigArray;
+use p256::ecdsa::VerifyingKey;
 
 extern crate alloc;
-
-// p256 and esphal both use rand core on different versions (esp_hal v0.9.5 and p256 v0.6.4)
-// creating wrapper to match version implmentations
-pub struct TrngWrapper(pub Trng);
-impl RngCoreOld for TrngWrapper {
-    fn next_u32(&mut self) -> u32{
-        RngCoreNew::next_u32(&mut self.0) 
-    }
-G
-    fn next_u64(&mut self) -> u64 {
-        RngCoreNew::next_u64(&mut self.0)
-    }
-
-    fn fill_bytes(&mut self, dst: &mut[u8]){
-        RngCoreNew::fill_bytes(&mut self.0, dst)
-    }
-
-    fn try_fill_bytes(&mut self, dst: &mut[u8]) -> Result<(), rand_core_old::Error>{
-        RngCoreNew::fill_bytes(&mut self.0, dst);
-        Ok(())
-    }
-}
-impl CryptoRngOld for TrngWrapper {}
 
 //Storage Service API
 pub struct StorageManager<T: Platform>{
     pub handle: Nvs<T>, 
 } 
+
 
 impl<T: Platform> StorageManager<T> {
     pub fn new(handle: Nvs<T>) -> Self {
@@ -221,8 +195,30 @@ impl GSCManager {
     }
 }
 
+//Crypto API 
+pub struct CryptoClient {
+    server_pub_key: VerifyingKey,
+}
+impl CryptoClient {
+    pub fn new(server_pub_key: VerifyingKey) -> Self {
+        Self { server_pub_key: server_pub_key }
+    }
+    
+    //compare server public key to received public key
+    pub fn compare_pub_key(&self, received_pub_key: [u8; 33]) {
+        let mut server_vkey_output = [0u8; 33];
+        let server_vkey_bytes = self.server_pub_key.to_sec1_bytes();
+        server_vkey_output.copy_from_slice(&server_vkey_bytes);
+        if server_vkey_output == received_pub_key {
+            info!("Let's go!");
+        } else {
+            info!("No bueno");
+        }
+    }
+}
+
 #[embassy_executor::task]
-pub async fn net_task(mut runner: Runner<'static, WifiDevice<'static>>) {
+pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
     runner.run().await;
 }
 
@@ -234,6 +230,8 @@ pub struct ReceivePacketInitialEnrl {
     pub signature_base: Vec<u8>,
     #[serde(rename = "server_challenge")]
     pub server_challenge: u32,
+    #[serde(rename = "server_pub_key", with = "BigArray")]
+    pub server_pub_key: [u8; 33],
 }
 
 impl ReceivePacketInitialEnrl {

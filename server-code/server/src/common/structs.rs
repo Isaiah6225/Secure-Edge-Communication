@@ -143,4 +143,11 @@ impl CryptoClient {
         let (signature, recovery_id) = self.signing_key.sign_digest(|hash_handle: &mut Sha256| {hash_handle.update(&signature_base)});
         Ok((signature, recovery_id))
     }
+
+    pub fn gen_pub_key_bytes(&self) -> Result<[u8; 33], ServerError>{
+        let mut vkey_output = [0u8; 33];
+        let vkey_bytes = self.verifying_key.to_sec1_bytes();
+        vkey_output.copy_from_slice(&vkey_bytes);
+        Ok(vkey_output)
+    }
 }

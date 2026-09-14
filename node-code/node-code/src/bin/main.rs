@@ -10,31 +10,35 @@ use embassy_sync::{
     watch::Watch,
     blocking_mutex::raw::CriticalSectionRawMutex,
 };
-use embassy_net::{
-    StackResources,
-};
+use embassy_net::StackResources;
 use esp_hal::{
     clock::CpuClock,
     timer::timg::TimerGroup,
     rng::TrngSource,
     rng::Rng,
 };
+/*
 use esp_radio::{
     Controller
 };
+*/
 use esp_storage::FlashStorage;
 use node_code::{
     mk_static,
     boot::create_nvs_handle,
     global_state::global_state,
     common::{
-        structs::{StorageManager, WifiManager, GSCManager},
+        structs::{StorageManager, WifiManager, GSCManager, CryptoClient, net_task},
         enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
         structs
     },
     wifi_task::{wifi_task, wifi_config},
 };
 use log::info;
+use p256::{
+    ecdsa::VerifyingKey,
+    pkcs8::DecodePublicKey,
+};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -57,34 +61,35 @@ async fn main(spawner: Spawner) {
     
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
+    let sw_interrupt =
+        esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     
     //RAM for wifi 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 73744);
     esp_alloc::heap_allocator!(size: 64 * 1024);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    esp_rtos::start(timg0.timer0);
+    esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
     info!("Embassy initialized!");
     
     //set up wifi resources
     //let radio_init = esp_radio::init().expect("Failed to initialize Wi-Fi controller");
-    let radio_init = &*mk_static!(Controller<'static>, esp_radio::init().unwrap());
+    //let radio_init = &*mk_static!(Controller<'static>, esp_radio::init().unwrap());
     let (wifi_controller, interfaces) =
-        esp_radio::wifi::new(&radio_init, peripherals.WIFI, Default::default()).unwrap();
+        esp_radio::wifi::new(peripherals.WIFI, Default::default()).expect("error: wifi controller failed");
 
-    //set wifi int
-    let wifi_int = interfaces.sta;
+    let wifi_int = interfaces.station;
+
 
     //set seed to prevent port collisions
     let rng = Rng::new(); 
     let seed = (rng.random() as u64) << 32 | rng.random() as u64;
 
     //config
-    //let pass: &'static str = env!("wifi_password");
     let config = embassy_net::Config::dhcpv4(Default::default()); 
 
     let (stack, runner) = embassy_net::new(
-        wifi_int, 
+        wifi_int,
         config,
         mk_static!(StackResources<3>, StackResources::<3>::new()),
         seed,
@@ -92,6 +97,10 @@ async fn main(spawner: Spawner) {
 
     //ip parsing 
     let ip_address = Ipv4Addr::from_str(REMOTE_IP).expect("failed to parse gateway IP");
+
+    //pub key from pem file
+    let read_verifying_key = VerifyingKey::from_public_key_pem("./pub_key.pem").expect("Failed to read server public key from pem file.");
+    let crypto_client = CryptoClient::new(read_verifying_key);
 
     //set up TrngSource
     let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
@@ -109,8 +118,8 @@ async fn main(spawner: Spawner) {
     let rcv0 = WC.receiver().unwrap();
     let sen0 = WC.sender();
     
-    spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0)).ok();
-    spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0, ip_address)).ok();
-    spawner.spawn(structs::net_task(runner)).ok();
-    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager)).ok();
+    spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0).expect("error: spawning task failed."));
+    spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0, ip_address, crypto_client).expect("error: spawning task failed."));
+    spawner.spawn(net_task(runner).expect("error: spawning task failed."));
+    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager).expect("error: spawning task failed."));
 }
