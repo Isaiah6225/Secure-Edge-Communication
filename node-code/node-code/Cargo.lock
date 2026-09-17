@@ -819,22 +819,6 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "esp-alloc"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "641e43d6a60244429117ef2fa7a47182120c7561336ea01f6fb08d634f46bae1"
-dependencies = [
- "allocator-api2",
- "cfg-if",
- "document-features",
- "enumset",
- "esp-config 0.6.1",
- "esp-sync 0.1.1",
- "linked_list_allocator",
- "rlsf",
-]
-
-[[package]]
-name = "esp-alloc"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46ced060d4085858283df950b80a4da2348e1707d7d07b1e966308582dae79f5"
@@ -843,7 +827,7 @@ dependencies = [
  "cfg-if",
  "document-features",
  "enumset",
- "esp-config 0.7.0",
+ "esp-config",
  "esp-sync 0.2.1",
  "linked_list_allocator",
  "rlsf",
@@ -858,26 +842,13 @@ dependencies = [
  "cfg-if",
  "document-features",
  "embedded-storage",
- "esp-config 0.7.0",
+ "esp-config",
  "esp-hal-procmacros 0.22.0",
  "esp-metadata-generated 0.4.0",
  "esp-rom-sys",
  "jiff",
  "log",
  "strum",
-]
-
-[[package]]
-name = "esp-config"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "102871054f8dd98202177b9890cb4b71d0c6fe1f1413b7a379a8e0841fc2473c"
-dependencies = [
- "document-features",
- "esp-metadata-generated 0.3.0",
- "serde",
- "serde_yaml",
- "somni-expr",
 ]
 
 [[package]]
@@ -920,7 +891,7 @@ dependencies = [
  "embedded-io-async 0.6.1",
  "embedded-io-async 0.7.0",
  "enumset",
- "esp-config 0.7.0",
+ "esp-config",
  "esp-hal-procmacros 0.22.0",
  "esp-metadata-generated 0.4.0",
  "esp-riscv-rt",
@@ -1013,7 +984,7 @@ dependencies = [
  "cfg-if",
  "document-features",
  "embassy-sync 0.8.0",
- "esp-config 0.7.0",
+ "esp-config",
  "esp-hal",
  "esp-metadata-generated 0.4.0",
  "esp-sync 0.2.1",
@@ -1053,8 +1024,8 @@ dependencies = [
  "embedded-io-async 0.6.1",
  "embedded-io-async 0.7.0",
  "enumset",
- "esp-alloc 0.10.0",
- "esp-config 0.7.0",
+ "esp-alloc",
+ "esp-config",
  "esp-hal",
  "esp-hal-procmacros 0.22.0",
  "esp-metadata-generated 0.4.0",
@@ -1126,8 +1097,8 @@ dependencies = [
  "embassy-sync 0.8.0",
  "embassy-time-driver",
  "embassy-time-queue-utils",
- "esp-alloc 0.10.0",
- "esp-config 0.7.0",
+ "esp-alloc",
+ "esp-config",
  "esp-hal",
  "esp-hal-procmacros 0.22.0",
  "esp-metadata-generated 0.4.0",
@@ -1731,7 +1702,7 @@ dependencies = [
  "embassy-time",
  "embedded-io 0.7.1",
  "embedded-io-async 0.7.0",
- "esp-alloc 0.9.0",
+ "esp-alloc",
  "esp-bootloader-esp-idf",
  "esp-hal",
  "esp-nvs",

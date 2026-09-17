@@ -20,7 +20,10 @@ use core::{
     fmt::Display,
     fmt,
 };
-use alloc::vec::Vec;
+use alloc::{
+    string::String, 
+    vec::Vec,
+};
 use esp_radio::wifi::Interface;
 use crate::{
     enrollment::format_enrollment_initial,
@@ -82,7 +85,7 @@ impl<T: Platform> StorageManager<T> {
         Ok(final_pub_key_value)
     }
 
-    //get ecc key pair from nvs
+    //get ecdsa key pair from nvs
     pub fn get_ecc(&mut self) -> Result<([u8; 32], [u8; 33]), NodeError> {
         let namespace = const {Key::from_str("ecdsa_keys")};
         
@@ -98,7 +101,7 @@ impl<T: Platform> StorageManager<T> {
         Ok((final_priv_key_value, final_pub_key_value))
     }
 
-    //set ecc key pair from nvs 
+    //set ecdsa key pair from nvs 
     pub fn set_ecc(&mut self, gen_priv_key: &[u8; 32], gen_pub_key: &[u8; 33]) -> Result<(), NodeError> {
         let namespace = const {Key::from_str("ecdsa_keys")};
         
@@ -112,6 +115,14 @@ impl<T: Platform> StorageManager<T> {
         self.handle.set(&namespace, &priv_key, priv_key_value)?;
         self.handle.set(&namespace, &pub_key, pub_key_value)?; 
         Ok(())
+    }
+    
+    //get saved server verifying key (saved with script, safe to get here)
+    pub fn get_server_verifying_key(&mut self) -> Result<String, NodeError> {
+        let namespace = const {Key::from_str("server_pub_key")};
+        let key = const {Key::from_str("server_data")};
+        let server_pub_get: String = self.handle.get(&namespace, &key)?;
+        Ok(server_pub_get)
     }
 }
 
@@ -205,8 +216,8 @@ impl CryptoClient {
     }
     
     //compare server public key to received public key
-    pub fn compare_pub_key(&self, received_pub_key: [u8; 33]) {
-        let mut server_vkey_output = [0u8; 33];
+    pub fn compare_pub_key(&self, received_pub_key: [u8; 65]) {
+        let mut server_vkey_output = [0u8; 65];
         let server_vkey_bytes = self.server_pub_key.to_sec1_bytes();
         server_vkey_output.copy_from_slice(&server_vkey_bytes);
         if server_vkey_output == received_pub_key {
@@ -226,12 +237,12 @@ pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
 pub struct ReceivePacketInitialEnrl {
     #[serde(rename = "signature_bytes", with = "BigArray")]
     pub signature_bytes: [u8; 64],
-    #[serde(rename = "signature_base")]
-    pub signature_base: Vec<u8>,
+    #[serde(rename = "signature_base", with = "BigArray")]
+    pub signature_base: [u8; 1500],
     #[serde(rename = "server_challenge")]
     pub server_challenge: u32,
     #[serde(rename = "server_pub_key", with = "BigArray")]
-    pub server_pub_key: [u8; 33],
+    pub server_pub_key: [u8; 65],
 }
 
 impl ReceivePacketInitialEnrl {
@@ -256,4 +267,3 @@ impl Display for SendPacketInitialEnrl {
         write!(f, "serialized_vkey: {:?}, dev_mac_add: {:?}, device_nonce: {}", self.serialized_vkey, self.dev_mac_add, self.device_nonce)
     }
 }
-

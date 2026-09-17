@@ -26,22 +26,6 @@ pub async fn wifi_config(
             Timer::after(Duration::from_millis(5000)).await
         } else {
             warn!("[wifi_config] the sta disconnected");
-            match controller.connect_async().await {
-                Ok(_) => {
-                    info!("[wifi_config] connection up");
-                    sen0.send(WifiConfigStatus::Up);
-                }
-
-                Err(e) => {
-                    info!("[wifi_config] connection down with error: {:?}", e);
-                    sen0.send(WifiConfigStatus::Down);
-                    Timer::after(Duration::from_millis(5000)).await
-                }
-           }
-        }
-
-        //TODO Need to consider all the unwraps and make this into a function  
-        if controller.is_connected() {
             info!("[wifi_config] setting client config");
             let client_config = 
                 Config::Station(StationConfig::default()
@@ -51,9 +35,6 @@ pub async fn wifi_config(
             controller.set_config(&client_config).unwrap();
 
             info!("[wifi_config] starting wifi_controller");
-            //controller.set_config(Client(ClientConfig)).await.unwrap();
-            info!("[wifi_config] controller started");
-
             info!("[wifi_config] connecting to AP");
             match controller.connect_async().await {
                 Ok(_) => {
@@ -66,10 +47,7 @@ pub async fn wifi_config(
                     sen0.send(WifiConfigStatus::Down);
                     Timer::after(Duration::from_millis(5000)).await
                 }
-            }
-        } else {
-            //controller.wait_for_event(WifiEvent::StaDisconnected).await;
-            Timer::after(Duration::from_millis(5000)).await
+           }
         }
     }
 }

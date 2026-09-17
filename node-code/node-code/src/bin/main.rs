@@ -30,20 +30,21 @@ use node_code::{
     common::{
         structs::{StorageManager, WifiManager, GSCManager, CryptoClient, net_task},
         enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
-        structs
     },
     wifi_task::{wifi_task, wifi_config},
 };
-use log::info;
+use log::{info, error};
 use p256::{
     ecdsa::VerifyingKey,
     pkcs8::DecodePublicKey,
 };
 
 #[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
+fn panic(panic_info: &core::panic::PanicInfo) -> ! {
+    error!("{}", panic_info);
     loop {}
 }
+
 
 esp_bootloader_esp_idf::esp_app_desc!();
 const WIFI_PASSWORD: &'static str = env!("WIFI_PASSWORD");
@@ -61,23 +62,24 @@ async fn main(spawner: Spawner) {
     
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
-    let sw_interrupt =
-        esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
-    
+
     //RAM for wifi 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 73744);
-    esp_alloc::heap_allocator!(size: 64 * 1024);
-
+    //esp_alloc::heap_allocator!(size: 64 * 1024);
+    
     let timg0 = TimerGroup::new(peripherals.TIMG0);
+    let sw_interrupt =
+        esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
     info!("Embassy initialized!");
     
     //set up wifi resources
-    //let radio_init = esp_radio::init().expect("Failed to initialize Wi-Fi controller");
-    //let radio_init = &*mk_static!(Controller<'static>, esp_radio::init().unwrap());
-    let (wifi_controller, interfaces) =
-        esp_radio::wifi::new(peripherals.WIFI, Default::default()).expect("error: wifi controller failed");
+    info!("creating wifi_controller and interfaces"); 
 
+    let (wifi_controller, interfaces) =
+        esp_radio::wifi::new(peripherals.WIFI, Default::default())
+        .expect("error: wifi controller failed");
+    info!("wifi_controller and interfaces are set");
     let wifi_int = interfaces.station;
 
 
@@ -87,20 +89,16 @@ async fn main(spawner: Spawner) {
 
     //config
     let config = embassy_net::Config::dhcpv4(Default::default()); 
-
     let (stack, runner) = embassy_net::new(
         wifi_int,
         config,
         mk_static!(StackResources<3>, StackResources::<3>::new()),
         seed,
     );
+    info!("embassy config, stack, and runner are set");
 
     //ip parsing 
     let ip_address = Ipv4Addr::from_str(REMOTE_IP).expect("failed to parse gateway IP");
-
-    //pub key from pem file
-    let read_verifying_key = VerifyingKey::from_public_key_pem("./pub_key.pem").expect("Failed to read server public key from pem file.");
-    let crypto_client = CryptoClient::new(read_verifying_key);
 
     //set up TrngSource
     let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
@@ -111,15 +109,20 @@ async fn main(spawner: Spawner) {
 
     //set up NVS partition and handle
     let storage = FlashStorage::new(peripherals.FLASH); 
-    let nvs = create_nvs_handle::set_nvs_handle(storage).expect("NVS failed setup. Panicking as program requires NVS to be set.");
-    let storage_manager = StorageManager::new(nvs);
+    let nvs = create_nvs_handle::set_nvs_handle(storage).expect("NVS failed setup.");
+    let mut storage_manager = StorageManager::new(nvs);
+
+    //set verifying key to crypto client
+    let verifying_key_string = storage_manager.get_server_verifying_key().expect("failed to get server verifying key string from nvs");
+    let verifying_key = VerifyingKey::from_public_key_pem(&verifying_key_string).expect("failed to get server verifying key");
+    let crypto_client = CryptoClient::new(verifying_key);
     
     //wifi config watch messaging channel
     let rcv0 = WC.receiver().unwrap();
     let sen0 = WC.sender();
     
-    spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0).expect("error: spawning task failed."));
-    spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0, ip_address, crypto_client).expect("error: spawning task failed."));
-    spawner.spawn(net_task(runner).expect("error: spawning task failed."));
-    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager).expect("error: spawning task failed."));
+    spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0).unwrap());
+    spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0, ip_address, crypto_client).unwrap());
+    spawner.spawn(net_task(runner).unwrap());
+    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager).unwrap());
 }

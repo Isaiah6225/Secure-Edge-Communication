@@ -132,8 +132,7 @@ pub async fn wifi_task(
                                         info!("[wifi_task EnrollmentSteps::FinalVerification] received data from remote server with {:?}", s); 
                                         let parsed_receive_data = ReceivePacketInitialEnrl::new(s);
                                         info!("[wifi_task EnrollmentSteps::FinalVerification] parsed_data {:?}", parsed_receive_data);
-                                        
-
+                                        crypto_client.compare_pub_key(parsed_receive_data.unwrap().server_pub_key);
                                     }
                                 }
                                 
