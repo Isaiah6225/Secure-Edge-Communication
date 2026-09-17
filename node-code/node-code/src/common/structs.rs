@@ -140,6 +140,12 @@ impl WifiManager {
         Self { stack: stack, trng_source: trng_source }
     }
 
+    pub fn gen_enrollment_initial_confirmation(&self, is_valid: u8) -> SendConfirmationEnrl {
+        let command = format_enrollment_initial::format_enrollment_initial_confirmation(is_valid);
+        info!("[WifiManager::gen_enrollment] generated enrollment confirmation packet and returning it");
+        command
+    }
+
     pub fn gen_enrollment_initial(&self, sv_key_bytes: [u8; 33]) -> SendPacketInitialEnrl {
         let mac = read_id::read_mac();
         let nonce = gen_nonce::gen_nonce();
@@ -216,14 +222,14 @@ impl CryptoClient {
     }
     
     //compare server public key to received public key
-    pub fn compare_pub_key(&self, received_pub_key: [u8; 65]) {
+    pub fn compare_pub_key(&self, received_pub_key: [u8; 65]) -> u8 {
         let mut server_vkey_output = [0u8; 65];
         let server_vkey_bytes = self.server_pub_key.to_sec1_bytes();
         server_vkey_output.copy_from_slice(&server_vkey_bytes);
         if server_vkey_output == received_pub_key {
-            info!("Let's go!");
+            return 0
         } else {
-            info!("No bueno");
+            return 1 
         }
     }
 }
@@ -233,14 +239,30 @@ pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
     runner.run().await;
 }
 
+// Data structs 
+
 #[derive(Debug, Deserialize)]
-pub struct ReceivePacketInitialEnrl {
+pub struct ReceivePacketFinVeri {
     #[serde(rename = "signature_bytes", with = "BigArray")]
     pub signature_bytes: [u8; 64],
     #[serde(rename = "signature_base", with = "BigArray")]
     pub signature_base: [u8; 1500],
     #[serde(rename = "server_challenge")]
     pub server_challenge: u32,
+}
+
+pub struct SendConfirmationEnrl {
+    pub is_valid: u8,
+}
+
+impl Display for SendConfirmationEnrl {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "is_valid: {:?}", self.is_valid)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReceivePacketInitialEnrl {
     #[serde(rename = "server_pub_key", with = "BigArray")]
     pub server_pub_key: [u8; 65],
 }

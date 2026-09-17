@@ -11,7 +11,7 @@ use crate::{
 };
 use tokio::{
     net::TcpStream,
-    io::AsyncWriteExt
+    io::{AsyncWriteExt, Interest},
 };
 use p256::{
     ecdsa::{VerifyingKey, SigningKey},
@@ -47,13 +47,19 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
     let mut init_send_buffer = String::<2048>::new();
     if let Err(e) = write!(
         init_send_buffer,
-        r#"{{"signature_bytes": {:?}, "signature_base": {:?}, "server_challenge": {:?}, "server_pub_key": {:?}"}}"#,
-        signature_bytes, signature_base, server_challenge, server_pub_key
+        r#"{{"server_pub_key": {:?}"}}"#,
+        server_pub_key
     ){
         println!("[manage_enrollment] error from write {:?}", e);
     };
     println!("[manage_enrollment] init_send_buffer: {:?}", init_send_buffer);
     stream.write_all(init_send_buffer.as_bytes()).await?;
+
+    //read initial response
+    let mut response_buf = vec![0; 10];
+    stream.ready(Interest::READABLE).await?;
+    stream.try_read(&mut response_buf)?;
+    println!("[manage_enrollment] got response: {:?}", response_buf);
     Ok(())
 }
 

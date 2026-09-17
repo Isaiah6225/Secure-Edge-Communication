@@ -67,7 +67,7 @@ async fn main() -> Result<(), ServerError> {
                 }
                 Err(_) => {
                     continue;
-                }
+               }
             }
         }
     }));
