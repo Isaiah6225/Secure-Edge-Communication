@@ -55,7 +55,7 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
     stream.write_all(init_send_buffer.as_bytes()).await?;
 
     //read initial response
-    let mut response_buf = vec![0; 10];
+    let mut response_buf = vec![0; 16];
     stream.ready(Interest::READABLE).await?;
     stream.try_read(&mut response_buf)?;
     println!("[manage_enrollment] got response: {:?}", response_buf);

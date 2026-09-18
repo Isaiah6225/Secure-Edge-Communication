@@ -251,6 +251,13 @@ pub struct ReceivePacketFinVeri {
     pub server_challenge: u32,
 }
 
+impl ReceivePacketFinVeri{
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, NodeError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
+}
+
 pub struct SendConfirmationEnrl {
     pub is_valid: u8,
 }

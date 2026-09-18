@@ -14,7 +14,7 @@ use embassy_sync::{
 use crate::{
     common::{
         enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
-        structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl, CryptoClient},
+        structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl, CryptoClient, ReceivePacketFinVeri},
     },
 };
 use log::info;
@@ -136,7 +136,7 @@ pub async fn wifi_task(
                                             Ok(data) => {
                                                 let compare_result = crypto_client.compare_pub_key(data.server_pub_key);
                                                 let init_read = manage_wifi.gen_enrollment_initial_confirmation(compare_result); 
-                                                let mut init_send_conf= String::<10>::new();
+                                                let mut init_send_conf= String::<17>::new();
                                                 if let Err(e) = write!(
                                                     init_send_conf,
                                                     r#"{{"is_valid": {:?}}}"#,
@@ -145,6 +145,7 @@ pub async fn wifi_task(
                                                     info!("[wifi_task EnrollmentSteps::InitialRead] error from write {:?}", e);
                                                     wtc_sender_handle.send(WifiCommand::Failure).await;
                                                 };
+                                                info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server");
                                                 tcp_socket.write(init_send_conf.as_bytes()).await;
                                             }
                                             Err(e) => {
@@ -156,12 +157,39 @@ pub async fn wifi_task(
                                 }
                                 
                                 Err(e) => {
-                                    info!("[wifi_task EnrollmentSteps::FinalVerification] read error sending failure to GSC: {:?}", e);
+                                    info!("[wifi_task EnrollmentSteps::InitialRead] read error sending failure to GSC: {:?}", e);
                                     wtc_sender_handle.send(WifiCommand::Failure).await;
                                     break 'session;
                                 }
                             }
 
+                            /*
+                            FINAL VERIFICATION READ 
+                            */
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task EnrollmentSteps::FinalVerification] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketFinVeri::new(s);
+                                        info!("[wifi_task EnrollmentSteps::FinalVerification] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(data) => {
+                                                info!("[wifi_task EnrollmentSteps::FinalVerification] received data from server yipee");
+                                            }
+                                            Err(e) => {
+                                                info!("[wifi_task EnrollmentSteps::InitialRead] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Err(e) => {
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                }
+                            }
                         }
 
                         EnrollmentSteps::VerifyKeys => todo!(),
