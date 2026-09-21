@@ -4,9 +4,12 @@ use crate::common::{
     errors::ServerError,
     enums::{DBOps, DBSave},
 };
-use tokio::sync::{
-    mpsc::Sender,
-    oneshot,
+use tokio::{
+    net::TcpStream,
+    sync::{
+        mpsc::Sender,
+        oneshot,
+    },
 };
 use p256::{
    ecdsa::{signature::DigestSigner, SigningKey, VerifyingKey, RecoveryId, Signature},
@@ -149,5 +152,27 @@ impl CryptoClient {
         let vkey_bytes = self.verifying_key.to_sec1_bytes();
         vkey_output.copy_from_slice(&vkey_bytes);
         Ok(vkey_output)
+    }
+}
+
+//API for handling networking in global state
+#[derive(Clone)]
+pub struct NetworkClient<'a>{
+    pub stream: &'a TcpStream, 
+}
+
+impl<'a> NetworkClient<'a> {
+    pub fn new(stream: &'a TcpStream) -> Self {
+        Self { stream: stream }
+    }
+
+    pub fn read_data(&self) -> Result<usize, ServerError>{
+        let mut response_buf = [0u8, 128];
+        //self.stream.ready(Interest::READABLE).await?;
+        match self.stream.try_read(&mut response_buf){
+            Ok(0) => { return Err(ServerError::EmptyReceiveErr) },
+            Ok(n) => { return Ok(n) },
+            Err(e) => { return Err(ServerError::IoErr(e)) },
+        };
     }
 }

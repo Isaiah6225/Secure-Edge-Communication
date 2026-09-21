@@ -1,6 +1,6 @@
 use crate::{
     common::{
-        structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient},
+        structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient, NetworkClient},
         enums::DBSave, 
         errors::ServerError
     },
@@ -26,6 +26,10 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
     let read_verifying_key = VerifyingKey::read_public_key_pem_file("./pub_key.pem")?;
     let read_signing_key = SigningKey::read_pkcs8_pem_file("./priv_key.pem")?;
     let crypto_client = CryptoClient::new(read_signing_key, read_verifying_key); 
+
+    //set up network client
+    println!("[manage_enrollment] setting up network client");
+    let network_client = NetworkClient::new(&stream); 
 
     //complete enrollment checks
     println!("[manage_enrollment] starting enrollment checks");
@@ -56,10 +60,8 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
 
     //read initial response
     println!("[manage_enrollment] waiting for device response"); 
-    let mut response_buf = vec![0; 16];
-    stream.ready(Interest::READABLE).await?;
-    stream.try_read(&mut response_buf)?;
-    println!("[manage_enrollment] got response: {:?}", response_buf);
+    let initial_response_data = network_client.read_data()?;
+    println!("[manage_enrollment] received response with: {:?}", initial_response_data); 
     Ok(())
 }
 

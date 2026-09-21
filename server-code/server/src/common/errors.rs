@@ -19,6 +19,7 @@ pub enum ServerError {
     CheckDeviceIDErr,
     MissingHeaderByteErr,
     DeviceExistErr,
+    EmptyReceiveErr
 }
 
 impl Display for ServerError{
@@ -28,6 +29,7 @@ impl Display for ServerError{
             ServerError::CheckDeviceIDErr => write!(f, "check device id failed"),
             ServerError::MissingHeaderByteErr => write!(f, "received packet is missing the header byte"),
             ServerError::DeviceExistErr => write!(f, "device exist in device_registry.db"),
+            ServerError::EmptyReceiveErr => write!(f, "device sent empty message"),
             _=> Ok(())
         }
     }
