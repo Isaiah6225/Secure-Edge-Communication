@@ -5,6 +5,7 @@ use crate::common::{
     enums::{DBOps, DBSave},
 };
 use tokio::{
+    io::Interest,
     net::TcpStream,
     sync::{
         mpsc::Sender,
@@ -166,13 +167,19 @@ impl<'a> NetworkClient<'a> {
         Self { stream: stream }
     }
 
-    pub fn read_data(&self) -> Result<usize, ServerError>{
+    pub async fn read_data(&self) -> Result<usize, ServerError>{
         let mut response_buf = [0u8, 128];
-        //self.stream.ready(Interest::READABLE).await?;
-        match self.stream.try_read(&mut response_buf){
-            Ok(0) => { return Err(ServerError::EmptyReceiveErr) },
-            Ok(n) => { return Ok(n) },
-            Err(e) => { return Err(ServerError::IoErr(e)) },
-        };
+        println!("[network_client] awaiting until stream is readable");
+        match self.stream.ready(Interest::READABLE).await {
+            Ok(_) => {
+                println!("[network_client] attempting to read device");
+                match self.stream.try_read(&mut response_buf){
+                    Ok(0) => { return Err(ServerError::EmptyReceiveErr) },
+                    Ok(n) => { return Ok(n) },
+                    Err(e) => { return Err(ServerError::IoErr(e)) },
+                }
+            },
+            Err(e) => { return Err(ServerError::IoErr(e)) }
+        }
     }
 }

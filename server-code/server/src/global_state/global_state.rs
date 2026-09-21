@@ -60,7 +60,7 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
 
     //read initial response
     println!("[manage_enrollment] waiting for device response"); 
-    let initial_response_data = network_client.read_data()?;
+    let initial_response_data = network_client.read_data().await?;
     println!("[manage_enrollment] received response with: {:?}", initial_response_data); 
     Ok(())
 }
