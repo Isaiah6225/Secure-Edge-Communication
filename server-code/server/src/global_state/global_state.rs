@@ -52,9 +52,10 @@ pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, m
         println!("[manage_enrollment] error from write {:?}", e);
     };
     println!("[manage_enrollment] init_send_buffer: {:?}", init_send_buffer);
-    stream.write_all(init_send_buffer.as_bytes()).await?;
+    stream.try_write(init_send_buffer.as_bytes())?;
 
     //read initial response
+    println!("[manage_enrollment] waiting for device response"); 
     let mut response_buf = vec![0; 16];
     stream.ready(Interest::READABLE).await?;
     stream.try_read(&mut response_buf)?;

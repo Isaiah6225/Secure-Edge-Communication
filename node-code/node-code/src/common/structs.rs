@@ -39,7 +39,7 @@ use crate::{
 use log::info;
 use serde::Deserialize;
 use serde_big_array::BigArray;
-use p256::ecdsa::VerifyingKey;
+use p256::ecdsa::{VerifyingKey, Signature, signature::Verifier};
 
 extern crate alloc;
 
@@ -232,6 +232,18 @@ impl CryptoClient {
             return 1 
         }
     }
+    
+    /*check signautre based on signature base 
+    pub fn check_server_signature(&self, signature_bytes: [u8; 64], signature_base: [u8; 1500]) -> Result<(), NodeError>{
+        let server_signature = Signature::from_slice(&signature_bytes);
+        self.server_pub_key.verify(&signature_base, &server_signature)?;
+    }
+    
+    sign received server challenge
+    pub fn sign_server_challenge(&self, server_challenge: u32, device_signing_key: ) {
+        
+    }
+    */
 }
 
 #[embassy_executor::task]

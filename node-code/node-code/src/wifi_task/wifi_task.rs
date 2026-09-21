@@ -123,7 +123,6 @@ pub async fn wifi_task(
                             /*
                              Initial Read
                             */
-
                             info!("[wifi_task EnrollmentSteps::InitalRead] awaitng bytes in rx buf");
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(len) => {
@@ -136,7 +135,7 @@ pub async fn wifi_task(
                                             Ok(data) => {
                                                 let compare_result = crypto_client.compare_pub_key(data.server_pub_key);
                                                 let init_read = manage_wifi.gen_enrollment_initial_confirmation(compare_result); 
-                                                let mut init_send_conf= String::<17>::new();
+                                                let mut init_send_conf= String::<16>::new();
                                                 if let Err(e) = write!(
                                                     init_send_conf,
                                                     r#"{{"is_valid": {:?}}}"#,
@@ -145,7 +144,7 @@ pub async fn wifi_task(
                                                     info!("[wifi_task EnrollmentSteps::InitialRead] error from write {:?}", e);
                                                     wtc_sender_handle.send(WifiCommand::Failure).await;
                                                 };
-                                                info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server");
+                                                info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server: {:?}", init_send_conf);
                                                 tcp_socket.write(init_send_conf.as_bytes()).await;
                                             }
                                             Err(e) => {
@@ -166,6 +165,8 @@ pub async fn wifi_task(
                             /*
                             FINAL VERIFICATION READ 
                             */
+                            info!("[wifi_task EnrollmentSteps::FinalVerification] awaiting bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(len) => {
                                     let received_data = &read_buffer[..len];
