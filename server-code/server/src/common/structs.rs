@@ -184,7 +184,7 @@ impl<'a> NetworkClient<'a> {
                         },
                         Ok(n) => { 
                             println!("[network_client] received data from device: {:?}", n);
-                            let parse_string = str::from_utf8(&buf[..n])?;
+                            let parse_string = str::from_utf8(&response_buf[..n])?;
                             println!("[network_client] parsed string: {:?}", parse_string);
                             return Ok(n)
                         },

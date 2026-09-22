@@ -15,6 +15,7 @@ pub enum ServerError {
     RandSysErr(rand::rngs::SysError),
     ECDSAErr(p256::ecdsa::Error),
     FmtErr(std::fmt::Error),
+    ParseStrErr(std::str::Utf8Error),
     EnrollmentClosedErr,
     CheckDeviceIDErr,
     MissingHeaderByteErr,
@@ -98,5 +99,11 @@ impl From<rand::rngs::SysError> for ServerError {
 impl From<std::fmt::Error> for ServerError {
     fn from(error: std::fmt::Error) -> Self {
         ServerError::FmtErr(error)
+    }
+}
+
+impl From<std::str::Utf8Error> for ServerError {
+    fn from(error: std::str::Utf8Error) -> Self {
+        ServerError::ParseStrErr(error)
     }
 }
