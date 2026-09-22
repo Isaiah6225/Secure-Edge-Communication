@@ -173,10 +173,19 @@ impl<'a> NetworkClient<'a> {
         match self.stream.ready(Interest::READABLE).await {
             Ok(_) => {
                 println!("[network_client] attempting to read device");
-                match self.stream.try_read(&mut response_buf){
-                    Ok(0) => { return Err(ServerError::EmptyReceiveErr) },
-                    Ok(n) => { return Ok(n) },
-                    Err(e) => { return Err(ServerError::IoErr(e)) },
+                match self.stream.try_read(&mut response_buf) {
+                    Ok(0) => { 
+                        println!("[network_client] empty response from device");
+                        return Err(ServerError::EmptyReceiveErr) 
+                    },
+                    Ok(n) => { 
+                        println!("[network_client] received data from device: {:?}", n);
+                        return Ok(n) 
+                    },
+                    Err(e) => {                     
+                        println!("[network_client] error: {:?}", e); 
+                        return Err(ServerError::IoErr(e)) 
+                    },
                 }
             },
             Err(e) => { return Err(ServerError::IoErr(e)) }

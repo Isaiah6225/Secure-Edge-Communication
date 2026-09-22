@@ -35,7 +35,6 @@ pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
     println!("[networking::conn::handle_connection] starting handle connection match statement");
     let mut buf = [0u8; 4096];
      
-    //tcp_stream.readable().await;
     match tcp_stream.ready(Interest::READABLE).await {
         Ok(_) => {
             match tcp_stream.try_read(&mut buf) {
