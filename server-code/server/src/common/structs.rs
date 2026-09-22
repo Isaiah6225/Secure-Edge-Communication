@@ -19,7 +19,10 @@ use rand::{
     TryRng,
     rngs::SysRng
 };
-use std::io::Write;
+use std::{
+    io::{Write, ErrorKind},
+    time::Duration,
+};
 use sha2::{Sha256, Digest};
 
 //DeviceStdComm struct (data received from device, second pass)
@@ -170,25 +173,33 @@ impl<'a> NetworkClient<'a> {
     pub async fn read_data(&self) -> Result<usize, ServerError>{
         let mut response_buf = [0u8, 128];
         println!("[network_client] awaiting until stream is readable");
-        match self.stream.ready(Interest::READABLE).await {
-            Ok(_) => {
-                println!("[network_client] attempting to read device");
-                match self.stream.try_read(&mut response_buf) {
-                    Ok(0) => { 
-                        println!("[network_client] empty response from device");
-                        return Err(ServerError::EmptyReceiveErr) 
-                    },
-                    Ok(n) => { 
-                        println!("[network_client] received data from device: {:?}", n);
-                        return Ok(n) 
-                    },
-                    Err(e) => {                     
-                        println!("[network_client] error: {:?}", e); 
-                        return Err(ServerError::IoErr(e)) 
-                    },
-                }
-            },
-            Err(e) => { return Err(ServerError::IoErr(e)) }
+        loop {
+            match self.stream.ready(Interest::READABLE).await {
+                Ok(_) => {
+                    println!("[network_client] attempting to read device");
+                    match self.stream.try_read(&mut response_buf) {
+                        Ok(0) => { 
+                            println!("[network_client] empty response from device");
+                            return Err(ServerError::EmptyReceiveErr) 
+                        },
+                        Ok(n) => { 
+                            println!("[network_client] received data from device: {:?}", n);
+                            return Ok(n)
+                        },
+                        Err(e) => {                     
+                            println!("[network_client] received error while trying to read");
+                            match e.kind() {
+                                ErrorKind::WouldBlock => {
+                                    println!("[network_client] would have blocked");
+                                    continue;
+                                },
+                                _ => return Err(ServerError::IoErr(e)) 
+                            }
+                        },
+                    }
+                },
+                Err(e) => { return Err(ServerError::IoErr(e)) }
+            }
         }
     }
 }
