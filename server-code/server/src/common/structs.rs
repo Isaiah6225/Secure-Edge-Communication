@@ -171,7 +171,7 @@ impl<'a> NetworkClient<'a> {
     }
 
     pub async fn read_data(&self) -> Result<usize, ServerError>{
-        let mut response_buf = [0u8, 128];
+        let mut response_buf = [0u8; 512];
         println!("[network_client] awaiting until stream is readable");
         loop {
             match self.stream.ready(Interest::READABLE).await {
@@ -184,6 +184,8 @@ impl<'a> NetworkClient<'a> {
                         },
                         Ok(n) => { 
                             println!("[network_client] received data from device: {:?}", n);
+                            let parse_string = str::from_utf8(&buf[..n])?;
+                            println!("[network_client] parsed string: {:?}", parse_string);
                             return Ok(n)
                         },
                         Err(e) => {                     
