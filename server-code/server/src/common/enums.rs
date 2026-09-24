@@ -6,7 +6,7 @@ use tokio::{
 };
 use strum::AsRefStr;
 use crate::common::{
-    structs::{CheckDevicePayload, SaveDevicePayload, DeviceEnrl, DeviceStdComm},
+    structs::{CheckDevicePayload, SaveDevicePayload, DeviceEnrl, DeviceStdComm, IsValid},
     errors::ServerError,
 };
 
@@ -36,6 +36,7 @@ pub enum DBSave {
 
 #[derive(Debug)]
 pub enum ParsedStruct {
-    DeviceEnrlParsed(DeviceEnrl), 
-    DeviceStdCommParsed(DeviceStdComm)
+    DeviceEnrlParsed(DeviceEnrl),
+    DeviceReceiveInitialEnrlParsed(IsValid),
+    DeviceStdCommParsed(DeviceStdComm), 
 }

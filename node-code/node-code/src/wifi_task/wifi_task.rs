@@ -138,13 +138,14 @@ pub async fn wifi_task(
                                                 let mut init_send_conf= String::<16>::new();
                                                 if let Err(e) = write!(
                                                     init_send_conf,
-                                                    r#"{{"is_valid": {:?}}}"#,
-                                                    init_read.is_valid
+                                                    r#"{{"header_byte": {:?}, "is_valid": {:?}}}"#,
+                                                    init_read.header_byte, init_read.is_valid
                                                 ){
                                                     info!("[wifi_task EnrollmentSteps::InitialRead] error from write {:?}", e);
                                                     wtc_sender_handle.send(WifiCommand::Failure).await;
                                                 };
                                                 info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server: {:?}", init_send_conf);
+                                                info!("[wifi_task EnrollmentSteps::InitialRead] as bytes: {:?}", init_send_conf.as_bytes());
                                                 tcp_socket.write(init_send_conf.as_bytes()).await;
                                             }
                                             Err(e) => {

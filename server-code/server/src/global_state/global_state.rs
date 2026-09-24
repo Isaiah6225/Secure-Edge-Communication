@@ -11,7 +11,6 @@ use crate::{
 };
 use tokio::{
     net::TcpStream,
-    io::{AsyncWriteExt, Interest},
 };
 use p256::{
     ecdsa::{VerifyingKey, SigningKey},
@@ -20,7 +19,7 @@ use p256::{
 use heapless::String;
 use std::fmt::Write;
 
-pub async fn manage_enrollment(mut stream: TcpStream, data_parsed: DeviceEnrl, mut db_client: DBClient) -> Result<(), ServerError>{
+pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut db_client: DBClient) -> Result<(), ServerError>{
     //set up crypto client
     println!("[manage_enrollment] setting up crypto client");
     let read_verifying_key = VerifyingKey::read_public_key_pem_file("./pub_key.pem")?;

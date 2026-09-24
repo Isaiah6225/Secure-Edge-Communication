@@ -7,10 +7,10 @@ use tokio::{
 };
 use crate::{
     common::{
-        enums::{MainFlow, ParsedStruct},
+        enums::MainFlow,
         errors::ServerError,
     },
-    parse::parse_packet,
+    parse::parse,
 };
 use std::{
     str,
@@ -56,7 +56,7 @@ pub async fn handle_connection(tcp_stream: TcpStream) -> MainFlow {
                     };
                     //let v: Vec<&str> = string.split("\n").collect();
                     println!("[networking::conn::handle_connection] string res: {:?}", string);
-                    let data_parsed = match parse_packet::parse(string) {
+                    let data_parsed = match parse(string) {
                         Ok(data) => data,
                         Err(_) => return MainFlow::Drop,
                     };

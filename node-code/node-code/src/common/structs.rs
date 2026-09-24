@@ -141,7 +141,8 @@ impl WifiManager {
     }
 
     pub fn gen_enrollment_initial_confirmation(&self, is_valid: u8) -> SendConfirmationEnrl {
-        let command = format_enrollment_initial::format_enrollment_initial_confirmation(is_valid);
+         let header_byte: u8 = 100;
+        let command = format_enrollment_initial::format_enrollment_initial_confirmation(is_valid, header_byte);
         info!("[WifiManager::gen_enrollment] generated enrollment confirmation packet and returning it");
         command
     }
@@ -271,12 +272,13 @@ impl ReceivePacketFinVeri{
 }
 
 pub struct SendConfirmationEnrl {
+    pub header_byte: u8, 
     pub is_valid: u8,
 }
 
 impl Display for SendConfirmationEnrl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "is_valid: {:?}", self.is_valid)
+        write!(f, "header_byte: {:?}, is_valid: {:?}", self.is_valid, self.header_byte)
     }
 }
 

@@ -1,8 +1,11 @@
 use serde::Deserialize;
 use serde_big_array::BigArray;
-use crate::common::{
-    errors::ServerError,
-    enums::{DBOps, DBSave},
+use crate::{
+    parse::parse_packet,
+    common::{
+        errors::ServerError,
+        enums::{DBOps, DBSave},
+    }
 };
 use tokio::{
     io::Interest,
@@ -21,10 +24,9 @@ use rand::{
 };
 use std::{
     io::{Write, ErrorKind},
-    time::Duration,
 };
 use sha2::{Sha256, Digest};
-
+/*DEVICE INITIAL DATA STRUCTS*/
 //DeviceStdComm struct (data received from device, second pass)
 #[derive(Debug, Deserialize, Copy, Clone)]
 pub struct DeviceStdComm {
@@ -63,12 +65,30 @@ impl DeviceEnrl {
 
 //Parse header byte
 #[derive(Debug, Deserialize, Copy, Clone)]
-pub struct Device {
+pub struct HeaderByte {
     #[serde(rename = "header_byte")]
     pub header_byte: u8,
 }
 
-impl Device {
+impl HeaderByte {
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, ServerError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
+}
+//END
+
+/*
+DEVICE AND SERVER GLOBAL STRUCTS
+*/
+//Device confirmation in enrollment initial 
+#[derive(Debug, Deserialize, Copy, Clone)]
+pub struct IsValid {
+    #[serde(rename = "is_valid")]
+    pub is_valid: u8,
+}
+
+impl IsValid {
     pub fn new<T: AsRef<str>>(string: T) -> Result<Self, ServerError>{
         let res = serde_json::from_str(string.as_ref())?;
         Ok(res)
@@ -87,6 +107,7 @@ pub struct SaveDevicePayload {
     pub nonce: u32,
     pub save_op: DBSave,
 }
+//END
 
 //API for interacting with the Database task 
 #[derive(Debug, Clone)]
@@ -185,7 +206,8 @@ impl<'a> NetworkClient<'a> {
                         Ok(n) => { 
                             println!("[network_client] received data from device: {:?}", n);
                             let parse_string = str::from_utf8(&response_buf[..n])?;
-                            println!("[network_client] parsed string: {:?}", parse_string);
+                            let data = parse_packet::parse(parse_string)?;
+                            println!("[network_client] parsed string: {:?}", data);
                             return Ok(n)
                         },
                         Err(e) => {                     

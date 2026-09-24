@@ -1,6 +1,5 @@
 use rusqlite::{Connection, named_params};
 use crate::common::{
-    structs::DeviceEnrl,
     errors::ServerError
 };
 

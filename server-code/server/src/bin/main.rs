@@ -15,7 +15,6 @@ use tokio::{
 };
 use dotenv::dotenv;
 use std::env;
-use p256::ecdsa::SigningKey;
 
 
 #[tokio::main(flavor = "multi_thread")]
@@ -59,6 +58,7 @@ async fn main() -> Result<(), ServerError> {
                                         println!("[main] moving to standard communication flow");
                                         task::spawn(global_state::manage_standard_communication(stream, data, db_client));
                                     }
+                                    _=> println!("[main] invalid option"),
                                 }
                                 
                             }
