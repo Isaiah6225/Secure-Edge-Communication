@@ -4,7 +4,7 @@ use crate::{
     parse::parse_packet,
     common::{
         errors::ServerError,
-        enums::{DBOps, DBSave},
+        enums::{DBOps, DBSave, ParsedStruct},
     }
 };
 use tokio::{
@@ -191,7 +191,7 @@ impl<'a> NetworkClient<'a> {
         Self { stream: stream }
     }
 
-    pub async fn read_data(&self) -> Result<usize, ServerError>{
+    pub async fn read_data(&self) -> Result<ParsedStruct, ServerError>{
         let mut response_buf = [0u8; 512];
         println!("[network_client] awaiting until stream is readable");
         loop {
@@ -208,7 +208,7 @@ impl<'a> NetworkClient<'a> {
                             let parse_string = str::from_utf8(&response_buf[..n])?;
                             let data = parse_packet::parse(parse_string)?;
                             println!("[network_client] parsed string: {:?}", data);
-                            return Ok(n)
+                            return Ok(data)
                         },
                         Err(e) => {                     
                             println!("[network_client] received error while trying to read");
@@ -224,6 +224,26 @@ impl<'a> NetworkClient<'a> {
                 },
                 Err(e) => { return Err(ServerError::IoErr(e)) }
             }
+        }
+    }
+}
+
+pub struct EnrollmentClient; 
+
+impl EnrollmentClient {
+    pub fn is_valid_enrollment(parsed_struct: ParsedStruct) -> Result<(), ServerError> {
+        match parsed_struct {
+            ParsedStruct::DeviceReceiveInitialEnrlParsed(data) => {
+                println!("[enrollment_client] checking value data");
+                if data.is_valid == 0 { 
+                    println!("[enrollment_client] valid initial enrollment received from device");
+                    return Ok(()) 
+                } else { 
+                    println!("[enrollment_client] invalid initial enrollment received from device");
+                    return Err(ServerError::InvalidReceiveEnrollment)
+                };
+            }
+            _=>{ return Err(ServerError::InvalidStruct) }
         }
     }
 }

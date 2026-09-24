@@ -20,7 +20,9 @@ pub enum ServerError {
     CheckDeviceIDErr,
     MissingHeaderByteErr,
     DeviceExistErr,
-    EmptyReceiveErr
+    EmptyReceiveErr,
+    InvalidReceiveEnrollment, 
+    InvalidStruct,
 }
 
 impl Display for ServerError{
@@ -31,6 +33,8 @@ impl Display for ServerError{
             ServerError::MissingHeaderByteErr => write!(f, "received packet is missing the header byte"),
             ServerError::DeviceExistErr => write!(f, "device exist in device_registry.db"),
             ServerError::EmptyReceiveErr => write!(f, "device sent empty message"),
+            ServerError::InvalidReceiveEnrollment => write!(f, "device responded with invalid receive initial enrollment"),
+            ServerError::InvalidStruct => write!(f, "unexpected struct received"),
             _=> Ok(())
         }
     }

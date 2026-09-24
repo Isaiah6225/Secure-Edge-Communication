@@ -1,6 +1,6 @@
 use crate::{
     common::{
-        structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient, NetworkClient},
+        structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient, NetworkClient, EnrollmentClient},
         enums::DBSave, 
         errors::ServerError
     },
@@ -37,16 +37,13 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     db_client.check_dev_db(&data_parsed.device_id, &data_parsed.device_pub).await?;
     db_client.save_dev_db(&data_parsed.device_id, &data_parsed.device_pub, &data_parsed.nonce, DBSave::Pending).await?;
     
-    //complete enrollment cryptography (server signature, signature base, and server_challenge)
+    //complete enrollment cryptography (server_challenge)
     println!("[manage_enrollment] completing initial enrollment cryptography");
     let server_challenge = CryptoClient::gen_server_challenge()?;
-    let signature_base = crypto_client.gen_signature_base(&data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
-    let (signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
     let server_pub_key = crypto_client.gen_pub_key_bytes()?;
-    let signature_bytes = &signature.to_vec();
 
-    //write response to device
-    let mut init_send_buffer = String::<2048>::new();
+    //write initial response to device
+    let mut init_send_buffer = String::<1024>::new();
     if let Err(e) = write!(
         init_send_buffer,
         r#"{{"server_pub_key": {:?}}}"#,
@@ -61,6 +58,13 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     println!("[manage_enrollment] waiting for device response"); 
     let initial_response_data = network_client.read_data().await?;
     println!("[manage_enrollment] received response with: {:?}", initial_response_data); 
+    EnrollmentClient::is_valid_enrollment(initial_response_data)?;
+
+    //write final veri to device
+    let signature_base = crypto_client.gen_signature_base(&data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
+    let (signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
+    let signature_bytes = &signature.to_vec();
+
     Ok(())
 }
 
