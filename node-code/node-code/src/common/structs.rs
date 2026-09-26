@@ -223,26 +223,28 @@ impl CryptoClient {
     }
     
     //compare server public key to received public key
-    pub fn compare_pub_key(&self, received_pub_key: [u8; 65]) -> u8 {
+    pub fn compare_pub_key(&self, received_pub_key: &[u8; 65]) -> u8 {
         let mut server_vkey_output = [0u8; 65];
         let server_vkey_bytes = self.server_pub_key.to_sec1_bytes();
         server_vkey_output.copy_from_slice(&server_vkey_bytes);
-        if server_vkey_output == received_pub_key {
+        if server_vkey_output == *received_pub_key {
             return 0
         } else {
             return 1 
         }
     }
     
-    /*check signautre based on signature base 
-    pub fn check_server_signature(&self, signature_bytes: [u8; 64], signature_base: [u8; 1500]) -> Result<(), NodeError>{
-        let server_signature = Signature::from_slice(&signature_bytes);
-        self.server_pub_key.verify(&signature_base, &server_signature)?;
+    //check signautre based on signature base 
+    pub fn check_server_signature(&self, signature_bytes: &[u8; 64], signature_base: &[u8; 1500]) -> Result<(), NodeError>{
+        let server_signature = Signature::from_slice(signature_bytes)?;
+        self.server_pub_key.verify(signature_base, &server_signature)?;
+        Ok(())
     }
     
+    /* 
     sign received server challenge
     pub fn sign_server_challenge(&self, server_challenge: u32, device_signing_key: ) {
-        
+    
     }
     */
 }

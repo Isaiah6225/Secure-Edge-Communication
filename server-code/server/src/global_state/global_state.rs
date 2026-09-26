@@ -39,7 +39,6 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     
     //complete enrollment cryptography (server_challenge)
     println!("[manage_enrollment] completing initial enrollment cryptography");
-    let server_challenge = CryptoClient::gen_server_challenge()?;
     let server_pub_key = crypto_client.gen_pub_key_bytes()?;
 
     //write initial response to device
@@ -53,6 +52,7 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     };
     println!("[manage_enrollment] init_send_buffer: {:?}", init_send_buffer);
     stream.try_write(init_send_buffer.as_bytes())?;
+    init_send_buffer.clear();
 
     //read initial response
     println!("[manage_enrollment] waiting for device response"); 
@@ -61,9 +61,23 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     EnrollmentClient::is_valid_enrollment(initial_response_data)?;
 
     //write final veri to device
+    let server_challenge = CryptoClient::gen_server_challenge()?;
     let signature_base = crypto_client.gen_signature_base(&data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
     let (signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
     let signature_bytes = &signature.to_vec();
+    if let Err(e) = write!(
+        init_send_buffer, 
+        r#"{{"signature_bytes": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#,
+        signature_bytes, signature_base, server_challenge
+    ){ 
+        println!("[manage_enrollment] waiting for device response"); 
+    };
+    stream.try_write(init_send_buffer.as_bytes())?;
+
+    //read final veri from device 
+    println!("[manage_enrollment] waiting for device response"); 
+    let finalveri_response_data = network_client.read_data().await?;
+    println!("[manage_enrollment] received response with: {:?}", finalveri_response_data);
 
     Ok(())
 }
