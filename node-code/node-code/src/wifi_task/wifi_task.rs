@@ -166,7 +166,7 @@ pub async fn wifi_task(
                             FINAL VERIFICATION READ 
                             */
                             info!("[wifi_task EnrollmentSteps::FinalVerification] awaiting bytes in rx buf");
-                            info!("[wifi_task EnrollmentStesps::FinalVerification] is read buffer empty: {:?}", read_buffer.is_empty()); 
+                            info!("[wifi_task EnrollmentStesps::FinalVerification] is read buffer empty: {:?} and contents: {:?}", read_buffer.is_empty(), read_buffer); 
                             tcp_socket.wait_read_ready().await;
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(len) => {
