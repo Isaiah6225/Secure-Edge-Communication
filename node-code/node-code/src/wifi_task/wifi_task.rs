@@ -166,6 +166,7 @@ pub async fn wifi_task(
                             FINAL VERIFICATION READ 
                             */
                             info!("[wifi_task EnrollmentSteps::FinalVerification] awaiting bytes in rx buf");
+                            info!("[wifi_task EnrollmentStesps::FinalVerification] is read buffer empty: {:?}", read_buffer.is_empty()); 
                             tcp_socket.wait_read_ready().await;
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(len) => {
@@ -181,7 +182,7 @@ pub async fn wifi_task(
                                                  
                                             }
                                             Err(e) => {
-                                                info!("[wifi_task EnrollmentSteps::InitialRead] failed to parse data with : {:?}", e);
+                                                info!("[wifi_task EnrollmentSteps::FinalVerification] failed to parse data with : {:?}", e);
                                                 wtc_sender_handle.send(WifiCommand::Failure).await;
                                             }
                                         }

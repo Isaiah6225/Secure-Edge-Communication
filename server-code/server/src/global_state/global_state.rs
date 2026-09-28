@@ -72,13 +72,14 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     ){ 
         println!("[manage_enrollment] waiting for device response"); 
     };
+    println!("[manage_enrollment] final verification write: {:?}", init_send_buffer); 
+    println!("[manage_enrollment] len of write: {:?}", init_send_buffer.len());
     stream.try_write(init_send_buffer.as_bytes())?;
 
     //read final veri from device 
     println!("[manage_enrollment] waiting for device response"); 
     let finalveri_response_data = network_client.read_data().await?;
     println!("[manage_enrollment] received response with: {:?}", finalveri_response_data);
-
     Ok(())
 }
 
