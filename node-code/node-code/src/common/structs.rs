@@ -53,6 +53,7 @@ impl<T: Platform> StorageManager<T> {
     pub fn new(handle: Nvs<T>) -> Self {
         Self { handle: handle } 
     }
+
     
     //get provision flag from nvs
     pub fn get_provision_flag(&mut self) ->  Result<u8, NodeError> {
@@ -138,6 +139,14 @@ impl WifiManager {
         trng_source: TrngSource<'static> 
     ) -> Self {
         Self { stack: stack, trng_source: trng_source }
+    }
+
+    
+    //clear buffer 
+    pub fn clear_buffer<'a>(buffer: &'a mut [u8]) {
+        for x in buffer {
+            *x = 0;
+        }
     }
 
     pub fn gen_enrollment_initial_confirmation(&self, is_valid: u8) -> SendConfirmationEnrl {

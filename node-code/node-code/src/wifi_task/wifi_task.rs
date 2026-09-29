@@ -146,6 +146,7 @@ pub async fn wifi_task(
                                                 };
                                                 info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server: {:?}", init_send_conf);
                                                 tcp_socket.write(init_send_conf.as_bytes()).await;
+                                                WifiManager::clear_buffer(&mut read_buffer);
                                             }
                                             Err(e) => {
                                                 info!("[wifi_task EnrollmentSteps::InitialRead] failed to parse data with : {:?}", e);

@@ -42,7 +42,7 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     let server_pub_key = crypto_client.gen_pub_key_bytes()?;
 
     //write initial response to device
-    let mut init_send_buffer = String::<1536>::new();
+    let mut init_send_buffer = String::<2048>::new();
     if let Err(e) = write!(
         init_send_buffer,
         r#"{{"server_pub_key": {:?}}}"#,
