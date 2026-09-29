@@ -217,7 +217,10 @@ impl<'a> NetworkClient<'a> {
                                     println!("[network_client] would have blocked");
                                     continue;
                                 },
-                                _ => return Err(ServerError::IoErr(e)) 
+                                _ => { 
+                                    println!("[network_client] error: {e:?}");
+                                    continue;
+                                }
                             }
                         },
                     }

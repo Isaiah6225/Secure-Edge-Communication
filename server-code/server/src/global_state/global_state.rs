@@ -74,6 +74,7 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     };
     println!("[manage_enrollment] final verification write: {:?}", init_send_buffer); 
     println!("[manage_enrollment] len of write: {:?}", init_send_buffer.len());
+    println!("[manage_enrollment] final veri bytes: {:?}", init_send_buffer.as_bytes());
     stream.try_write(init_send_buffer.as_bytes())?;
 
     //read final veri from device 

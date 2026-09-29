@@ -30,9 +30,9 @@ pub async fn wifi_task(
     crypto_client: CryptoClient
 ) {
     //set socket buffers and setting write retry count
-    let mut rx_buffer = [0; 4096];
+    let mut rx_buffer = [0; 1792];
     let mut tx_buffer = [0; 1536];
-    let mut read_buffer = [0u8; 4096];
+    let mut read_buffer = [0; 1792];
     let mut write_retry_count = 0;
 
     info!("[wifi_task] starting wifi set up and send process");
@@ -146,7 +146,6 @@ pub async fn wifi_task(
                                                 };
                                                 info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server: {:?}", init_send_conf);
                                                 tcp_socket.write(init_send_conf.as_bytes()).await;
-                                                WifiManager::clear_buffer(&mut read_buffer);
                                             }
                                             Err(e) => {
                                                 info!("[wifi_task EnrollmentSteps::InitialRead] failed to parse data with : {:?}", e);
@@ -166,11 +165,13 @@ pub async fn wifi_task(
                             /*
                             FINAL VERIFICATION READ 
                             */
+                            WifiManager::clear_buffer(&mut read_buffer);
+                            info!("[wifi_task EnrollmentSteps::FinalVerification] read buffer before tcp read: {:?}", read_buffer);
                             info!("[wifi_task EnrollmentSteps::FinalVerification] awaiting bytes in rx buf");
-                            info!("[wifi_task EnrollmentStesps::FinalVerification] is read buffer empty: {:?} and contents: {:?}", read_buffer.is_empty(), read_buffer); 
                             tcp_socket.wait_read_ready().await;
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(len) => {
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] read_buffer state: {:?}", read_buffer); 
                                     let received_data = &read_buffer[..len];
                                     if let Ok(s) = core::str::from_utf8(received_data) {
                                         info!("[wifi_task EnrollmentSteps::FinalVerification] received data from remote server with {:?}", s); 
