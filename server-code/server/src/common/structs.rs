@@ -161,9 +161,9 @@ impl CryptoClient {
         Ok(SysRng.try_next_u32()?)
     }
 
-    pub fn gen_signature_base(&self, device_id: &[u8; 6], nonce: &u32, server_challenge: &u32) -> Result<Vec<u8>, ServerError> {
+    pub fn gen_signature_base(device_pub: &[u8; 33], device_id: &[u8; 6], nonce: &u32, server_challenge: &u32) -> Result<Vec<u8>, ServerError> {
         let mut signature_base = Vec::new();
-        write!(&mut signature_base, "{:?}{}{}{:?}", device_id, nonce, server_challenge, self.verifying_key)?;
+        write!(&mut signature_base, "{:?}{}{}{:?}", device_id, nonce, server_challenge, device_pub)?;
         Ok(signature_base)
     }
     

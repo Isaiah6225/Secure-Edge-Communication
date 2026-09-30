@@ -9,8 +9,9 @@ pub enum NodeError {
     NvsError(esp_nvs::error::Error),
     InvalidKeyLength(usize),
     SerdeErr(serde_json::Error),
-    CryptoErr(p256::ecdsa::Error)
+    CryptoErr(p256::ecdsa::Error),
 }
+
 
 impl From<TrngError> for NodeError {
     fn from(error: TrngError) -> Self {

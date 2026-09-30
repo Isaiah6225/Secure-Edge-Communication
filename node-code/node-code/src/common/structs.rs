@@ -231,15 +231,12 @@ impl CryptoClient {
         Self { server_pub_key: server_pub_key }
     }
     
-    //compare server public key to received public key
-    pub fn compare_pub_key(&self, received_pub_key: &[u8; 65]) -> u8 {
-        let mut server_vkey_output = [0u8; 65];
-        let server_vkey_bytes = self.server_pub_key.to_sec1_bytes();
-        server_vkey_output.copy_from_slice(&server_vkey_bytes);
-        if server_vkey_output == *received_pub_key {
+    //compare orignal nonce with server sent nonce
+    pub fn compare_nonce(og_nonce: &u32, sent_nonce: &u32) -> u8{
+        if og_nonce == sent_nonce {
             return 0
         } else {
-            return 1 
+            return 1
         }
     }
     
@@ -295,8 +292,8 @@ impl Display for SendConfirmationEnrl {
 
 #[derive(Debug, Deserialize)]
 pub struct ReceivePacketInitialEnrl {
-    #[serde(rename = "server_pub_key", with = "BigArray")]
-    pub server_pub_key: [u8; 65],
+    #[serde(rename= "device_nonce")]
+    pub device_nonce: u32,
 }
 
 impl ReceivePacketInitialEnrl {

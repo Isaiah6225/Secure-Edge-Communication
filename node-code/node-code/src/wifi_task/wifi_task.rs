@@ -133,7 +133,8 @@ pub async fn wifi_task(
                                         info!("[wifi_task EnrollmentSteps::InitialRead] parsed_data {:?}", parsed_receive_data);
                                         match parsed_receive_data {
                                             Ok(data) => {
-                                                let compare_result = crypto_client.compare_pub_key(&data.server_pub_key);
+                                                info!("{:?}", init_packet.device_nonce);
+                                                let compare_result = CryptoClient::compare_nonce(&init_packet.device_nonce, &data.device_nonce);
                                                 let init_read = manage_wifi.gen_enrollment_initial_confirmation(compare_result); 
                                                 let mut init_send_conf= String::<128>::new();
                                                 if let Err(e) = write!(

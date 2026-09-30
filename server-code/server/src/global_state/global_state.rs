@@ -39,14 +39,13 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     
     //complete enrollment cryptography (server_challenge)
     println!("[manage_enrollment] completing initial enrollment cryptography");
-    let server_pub_key = crypto_client.gen_pub_key_bytes()?;
 
     //write initial response to device
     let mut init_send_buffer = String::<2048>::new();
     if let Err(e) = write!(
         init_send_buffer,
-        r#"{{"server_pub_key": {:?}}}"#,
-        server_pub_key
+        r#"{{"device_nonce": {:?}}}"#,
+        &data_parsed.nonce
     ){
         println!("[manage_enrollment] error from write {:?}", e);
     };
@@ -61,8 +60,9 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     EnrollmentClient::is_valid_enrollment(initial_response_data)?;
 
     //write final veri to device
+    let server_pub_key = crypto_client.gen_pub_key_bytes()?;
     let server_challenge = CryptoClient::gen_server_challenge()?;
-    let signature_base = crypto_client.gen_signature_base(&data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
+    let signature_base = CryptoClient::gen_signature_base(&data_parsed.device_pub, &data_parsed.device_id, &data_parsed.nonce, &server_challenge)?;
     let (signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
     let signature_bytes = &signature.to_vec();
     if let Err(e) = write!(
