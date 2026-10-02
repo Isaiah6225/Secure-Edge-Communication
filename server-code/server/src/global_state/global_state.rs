@@ -1,4 +1,5 @@
 use crate::{
+    parse::parse_packet,
     common::{
         structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient, NetworkClient, EnrollmentClient},
         enums::DBSave, 
@@ -70,17 +71,38 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
         r#"{{"signature_bytes": {:?}, "signature_base": {:?}, "server_challenge": {:?}}}"#,
         signature_bytes, signature_base, server_challenge
     ){ 
-        println!("[manage_enrollment] waiting for device response"); 
+        println!("[manage_enrollment] error from write {:?}", e); 
     };
-    println!("[manage_enrollment] final verification write: {:?}", init_send_buffer); 
     println!("[manage_enrollment] len of write: {:?}", init_send_buffer.len());
-    println!("[manage_enrollment] final veri bytes: {:?}", init_send_buffer.as_bytes());
     stream.try_write(init_send_buffer.as_bytes())?;
+    init_send_buffer.clear();
 
     //read final veri from device 
     println!("[manage_enrollment] waiting for device response"); 
     let finalveri_response_data = network_client.read_data().await?;
     println!("[manage_enrollment] received response with: {:?}", finalveri_response_data);
+
+    println!("[manage_enrollment] parsing packet and checking device signature");
+    let finalveri_parsed = parse_packet::parse_final_verification_parsed(finalveri_response_data)?;
+    CryptoClient::verify_ecdsa_signature(&data_parsed.device_pub, &finalveri_parsed.device_signature, finalveri_parsed.server_challenge)?;
+    
+    //write final veri clean up to device 
+    let is_verify: u8 = 0; 
+    let server_challenge_final = CryptoClient::gen_server_challenge()?;
+    let signature_base_final = CryptoClient::gen_signature_base(&data_parsed.device_pub, &data_parsed.device_id, &finalveri_parsed.nonce, &server_challenge_final)?;
+    let (signature_final,  _) = crypto_client.gen_signature(&signature_base_final)?;
+    let signature_bytes_final = &signature_final.to_vec();
+
+    if let Err(e) = write!(
+        init_send_buffer, 
+        r#"{{"signature_bytes": {:?}, "signature_base": {:?}, "is_verify": {:?}}}"#,
+        signature_bytes_final, signature_base_final, is_verify
+    ){ 
+        println!("[manage_enrollment] error from write {:?}", e); 
+    };
+    println!("[manage_enrollment] final verification clean up write length: {:?}", init_send_buffer.len());
+    stream.try_write(init_send_buffer.as_bytes())?;
+    init_send_buffer.clear();
     Ok(())
 }
 

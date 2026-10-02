@@ -36,7 +36,7 @@ pub enum WifiConfigStatus {
 //TODO every enum below this can be refactor to be one enum for simplicity
 pub enum EnrollmentSteps {
     VerifyKeys,
-    Enrollment([u8; 33]),
+    Enrollment([u8; 32], [u8; 33]),
 }
 
 //channel communication

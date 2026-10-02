@@ -1,17 +1,31 @@
 use esp_hal::rng::{
     TrngError
 };
+use core::{
+    fmt, 
+    fmt::Display
+};
 
 //error enum
 #[derive(Debug)]
 pub enum NodeError {
     Rng(TrngError),
     NvsError(esp_nvs::error::Error),
-    InvalidKeyLength(usize),
     SerdeErr(serde_json::Error),
     CryptoErr(p256::ecdsa::Error),
+    InvalidKeyLength(usize),
+    FinalVerificationCleanUpErr
 }
 
+impl Display for NodeError{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            NodeError::InvalidKeyLength(usize) => write!(f, "invalid key length"),
+            NodeError::FinalVerificationCleanUpErr => write!(f, "server return final verification failed"), 
+            _=> Ok(())
+        }
+    }
+}
 
 impl From<TrngError> for NodeError {
     fn from(error: TrngError) -> Self {
@@ -36,7 +50,6 @@ impl From<p256::ecdsa::Error> for NodeError {
         NodeError::CryptoErr(error)
     }
 }
-
 /*
 impl From<InvalidKeyLength> for NodeError {
     fn from(error: InvalidKeyLength) -> Self {

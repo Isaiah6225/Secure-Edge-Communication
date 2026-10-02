@@ -14,7 +14,7 @@ use embassy_sync::{
 use crate::{
     common::{
         enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
-        structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl, CryptoClient, ReceivePacketFinVeri},
+        structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl, CryptoClient, ReceivePacketFinVeri, ReceivePacketFinVeriClean},
     },
 };
 use log::info;
@@ -30,9 +30,10 @@ pub async fn wifi_task(
     crypto_client: CryptoClient
 ) {
     //set socket buffers and setting write retry count
-    let mut rx_buffer = [0; 1792];
+    //1792
+    let mut rx_buffer = [0; 2048];
     let mut tx_buffer = [0; 1536];
-    let mut read_buffer = [0; 1792];
+    let mut read_buffer = [0; 2048];
     let mut write_retry_count = 0;
 
     info!("[wifi_task] starting wifi set up and send process");
@@ -51,7 +52,7 @@ pub async fn wifi_task(
                 let state = gsc_receiver_handle.receive().await;
                 'session: loop {
                     match state {
-                        EnrollmentSteps::Enrollment(ecdsa_pub_key) => {
+                        EnrollmentSteps::Enrollment(ecdsa_priv_key, ecdsa_pub_key) => {
                             /*
                             INITIAL SEND
                             */
@@ -62,7 +63,7 @@ pub async fn wifi_task(
                             tcp_socket.set_timeout(Some(Duration::from_secs(10)));
 
                             //format initial packet 
-                            let init_packet = manage_wifi.gen_enrollment_initial(ecdsa_pub_key); 
+                            let init_packet = WifiManager::gen_enrollment_initial(ecdsa_pub_key); 
                             info!("[wifi_task EnrollmentSteps::Initial] created init packet: {:?}", init_packet);
 
                             //connect to endpoint
@@ -135,7 +136,7 @@ pub async fn wifi_task(
                                             Ok(data) => {
                                                 info!("{:?}", init_packet.device_nonce);
                                                 let compare_result = CryptoClient::compare_nonce(&init_packet.device_nonce, &data.device_nonce);
-                                                let init_read = manage_wifi.gen_enrollment_initial_confirmation(compare_result); 
+                                                let init_read = WifiManager::gen_enrollment_initial_confirmation(compare_result); 
                                                 let mut init_send_conf= String::<128>::new();
                                                 if let Err(e) = write!(
                                                     init_send_conf,
@@ -167,12 +168,11 @@ pub async fn wifi_task(
                             FINAL VERIFICATION READ 
                             */
                             WifiManager::clear_buffer(&mut read_buffer);
-                            info!("[wifi_task EnrollmentSteps::FinalVerification] read buffer before tcp read: {:?}", read_buffer);
                             info!("[wifi_task EnrollmentSteps::FinalVerification] awaiting bytes in rx buf");
                             tcp_socket.wait_read_ready().await;
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(len) => {
-                                    info!("[wifi_task EnrollmentSteps::FinalVerification] read_buffer state: {:?}", read_buffer); 
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] length of read_buffer: {:?}", read_buffer.len()); 
                                     let received_data = &read_buffer[..len];
                                     if let Ok(s) = core::str::from_utf8(received_data) {
                                         info!("[wifi_task EnrollmentSteps::FinalVerification] received data from remote server with {:?}", s); 
@@ -182,7 +182,26 @@ pub async fn wifi_task(
                                             Ok(data) => {
                                                 info!("[wifi_task EnrollmentSteps::FinalVerification] received data from server yipee");
                                                 crypto_client.check_server_signature(&data.signature_bytes, &data.signature_base).expect("server verification failed");
-                                                 
+                                                match CryptoClient::sign_server_challenge(&data.server_challenge, &ecdsa_priv_key) {
+                                                    Ok(signature_bytes) => {
+                                                        let final_send = WifiManager::gen_enrollment_final(data.server_challenge, signature_bytes); 
+                                                        let mut init_send_conf= String::<786>::new();
+                                                        if let Err(e) = write!(
+                                                            init_send_conf,
+                                                            r#"{{"header_byte": {:?}, "device_signature": {:?}, "server_challenge": {:?}, "nonce": {:?}}}"#,
+                                                            final_send.header_byte, final_send.device_signature, final_send.server_challenge, final_send.nonce
+                                                        ){
+                                                            info!("[wifi_task EnrollmentSteps::InitialRead] error from write {:?}", e);
+                                                            wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                        };
+                                                        info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server: {:?}", init_send_conf);
+                                                        tcp_socket.write(init_send_conf.as_bytes()).await;
+                                                    },
+                                                    Err(e) => {
+                                                        info!("[wifi_task EnrollmentSteps::FinalVerification] failed to sign server challenge with: {:?}", e);
+                                                        wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                    }
+                                                };
                                             }
                                             Err(e) => {
                                                 info!("[wifi_task EnrollmentSteps::FinalVerification] failed to parse data with : {:?}", e);
@@ -197,8 +216,50 @@ pub async fn wifi_task(
                                     wtc_sender_handle.send(WifiCommand::Failure).await;
                                 }
                             }
-                        }
 
+
+                            /*
+                             FINAL VERIFICATION CLEAN UP
+                             */
+                            WifiManager::clear_buffer(&mut read_buffer);
+                            info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] awaiting bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketFinVeriClean::new(s);
+                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(data) => {
+                                                info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] received data from server yipee");
+                                                crypto_client.check_server_signature(&data.signature_bytes, &data.signature_base).expect("server verification failed");
+                                                match CryptoClient::is_verify(&data.is_verify) {
+                                                    Ok(()) => {
+                                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] success!");
+                                                        wtc_sender_handle.send(WifiCommand::Success).await;
+                                                    },
+                                                    Err(e) => {
+                                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] failed to parse data with : {:?}", e);
+                                                        wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                    }
+                                                };  
+                                            }
+                                            Err(e) => {
+                                                info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Err(e) => {
+                                    info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                }
+                            }
+                        }
                         EnrollmentSteps::VerifyKeys => todo!(),
                     }
                 }

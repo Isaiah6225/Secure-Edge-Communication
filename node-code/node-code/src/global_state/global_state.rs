@@ -95,11 +95,11 @@ pub async fn manage_global_state(
                             }
 
                             //get verifying key from nvs
-                            match manage_storage.get_ecdsa_pub() {
-                                Ok(pub_key) => {
-                                    info!("[Global State: get_ecdsa_pub] received pub key from nvs: {:?}", pub_key);
+                            match manage_storage.get_ecc() {
+                                Ok((priv_key, pub_key)) => {
+                                    info!("[Global State: get_ecdsa_pub] received priv key and pub key with: {:?}  {:?} ", priv_key, pub_key);
                                     info!("[Global State: Enrollment] moving to enrollment steps");
-                                    enrollment_steps = EnrollmentSteps::Enrollment(pub_key)
+                                    enrollment_steps = EnrollmentSteps::Enrollment(priv_key, pub_key)
                                 }
 
 
@@ -111,9 +111,9 @@ pub async fn manage_global_state(
                         }
                         
                         //move to initial communication phase
-                        EnrollmentSteps::Enrollment(pub_key) => {
+                        EnrollmentSteps::Enrollment(priv_key, pub_key) => {
                             info!("[Global State: EnrollmentSteps::Enrollment] moving to EnrollmentSteps::Enrollment");
-                            gsc_manager.send_enrollment(&EnrollmentSteps::Enrollment(pub_key)).await;
+                            gsc_manager.send_enrollment(&EnrollmentSteps::Enrollment(priv_key, pub_key)).await;
 
                             //TODO figure out a better way to create a method around this block
                             match gsc_manager.receive_enrollment().await {

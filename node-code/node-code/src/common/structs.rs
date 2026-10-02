@@ -39,7 +39,7 @@ use crate::{
 use log::info;
 use serde::Deserialize;
 use serde_big_array::BigArray;
-use p256::ecdsa::{VerifyingKey, Signature, signature::Verifier};
+use p256::ecdsa::{VerifyingKey, SigningKey, Signature, signature::{Verifier, Signer}};
 
 extern crate alloc;
 
@@ -149,14 +149,23 @@ impl WifiManager {
         }
     }
 
-    pub fn gen_enrollment_initial_confirmation(&self, is_valid: u8) -> SendConfirmationEnrl {
-         let header_byte: u8 = 100;
+    pub fn gen_enrollment_final(server_challenge: u32, device_signature_bytes: [u8; 64]) -> SendPacketFinalVerification {
+        let header_byte: u8 = 101;
+        let nonce = gen_nonce::gen_nonce();
+
+        let command = format_enrollment_initial::format_enrollment_final_verification(header_byte, device_signature_bytes, server_challenge, nonce);
+        info!("[WifiManager::gen_enrollment] generated enrollment final verification packet and returning it");
+        command
+    }
+
+    pub fn gen_enrollment_initial_confirmation(is_valid: u8) -> SendConfirmationEnrl {
+        let header_byte: u8 = 100;
         let command = format_enrollment_initial::format_enrollment_initial_confirmation(is_valid, header_byte);
         info!("[WifiManager::gen_enrollment] generated enrollment confirmation packet and returning it");
         command
     }
 
-    pub fn gen_enrollment_initial(&self, sv_key_bytes: [u8; 33]) -> SendPacketInitialEnrl {
+    pub fn gen_enrollment_initial(sv_key_bytes: [u8; 33]) -> SendPacketInitialEnrl {
         let mac = read_id::read_mac();
         let nonce = gen_nonce::gen_nonce();
         let header_byte: u8 = 0;
@@ -197,9 +206,9 @@ impl GSCManager {
     pub async fn send_enrollment(&self, enrollment_steps: &EnrollmentSteps) {
         info!("[GSCManager::send_enrollment]");
         match enrollment_steps {
-            EnrollmentSteps::Enrollment(pub_key) => {
+            EnrollmentSteps::Enrollment(priv_key, pub_key) => {
                 info!("[GSCManager::send_enrollment] sending ENROLLMENT request to wifi_task.");
-                self.gsc_sender_handle.send(EnrollmentSteps::Enrollment(*pub_key)).await;
+                self.gsc_sender_handle.send(EnrollmentSteps::Enrollment(*priv_key, *pub_key)).await;
             }, 
             EnrollmentSteps::VerifyKeys => {} 
         }
@@ -241,18 +250,33 @@ impl CryptoClient {
     }
     
     //check signautre based on signature base 
-    pub fn check_server_signature(&self, signature_bytes: &[u8; 64], signature_base: &[u8; 1500]) -> Result<(), NodeError>{
+    pub fn check_server_signature(&self, signature_bytes: &[u8; 64], signature_base: &Vec<u8>) -> Result<(), NodeError>{
         let server_signature = Signature::from_slice(signature_bytes)?;
         self.server_pub_key.verify(signature_base, &server_signature)?;
         Ok(())
     }
     
-    /* 
-    sign received server challenge
-    pub fn sign_server_challenge(&self, server_challenge: u32, device_signing_key: ) {
-    
+    //sign received server challenge
+    pub fn sign_server_challenge(server_challenge: &u32, device_signing_key: &[u8; 32]) -> Result<[u8; 64], NodeError>{
+        let mut signature_output = [0u8; 64];
+        let server_challenge_bytes = server_challenge.to_be_bytes();
+
+        let device_signing_key = SigningKey::from_slice(device_signing_key)?;
+        let signature: Signature = device_signing_key.sign(&server_challenge_bytes);
+
+        let signature_bytes = &signature.to_vec();
+        signature_output.copy_from_slice(signature_bytes);
+        Ok(signature_output)
     }
-    */
+
+    //check if final verification is complete
+    pub fn is_verify(is_verify: &u8) -> Result<(), NodeError>{
+        if *is_verify == 0 {
+            Ok(())
+        } else {
+            return Err(NodeError::FinalVerificationCleanUpErr)
+        }
+    }
 }
 
 #[embassy_executor::task]
@@ -263,11 +287,41 @@ pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
 // Data structs 
 
 #[derive(Debug, Deserialize)]
+pub struct ReceivePacketFinVeriClean {
+    #[serde(rename = "signature_bytes", with = "BigArray")]
+    pub signature_bytes: [u8; 64],
+    #[serde(rename = "signature_base")]
+    pub signature_base: Vec<u8>,
+    #[serde(rename = "is_verify")]
+    pub is_verify: u8,
+}
+
+impl ReceivePacketFinVeriClean {
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, NodeError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
+}
+
+pub struct SendPacketFinalVerification {
+    pub header_byte: u8, 
+    pub device_signature: [u8; 64], 
+    pub server_challenge: u32,
+    pub nonce: u32, 
+}
+
+impl Display for SendPacketFinalVerification {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "header_byte: {:?}, device_signature: {:?}, server_challenge:{:?}, nonce: {:?}", self.header_byte, self.device_signature, self.server_challenge, self.nonce)
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ReceivePacketFinVeri {
     #[serde(rename = "signature_bytes", with = "BigArray")]
     pub signature_bytes: [u8; 64],
-    #[serde(rename = "signature_base", with = "BigArray")]
-    pub signature_base: [u8; 1500],
+    #[serde(rename = "signature_base")]
+    pub signature_base: Vec<u8>,
     #[serde(rename = "server_challenge")]
     pub server_challenge: u32,
 }

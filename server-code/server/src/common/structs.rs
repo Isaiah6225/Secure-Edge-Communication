@@ -16,7 +16,7 @@ use tokio::{
     },
 };
 use p256::{
-   ecdsa::{signature::DigestSigner, SigningKey, VerifyingKey, RecoveryId, Signature},
+   ecdsa::{signature::DigestSigner, SigningKey, VerifyingKey, RecoveryId, Signature, signature::Verifier},
 };
 use rand::{
     TryRng,
@@ -81,6 +81,23 @@ impl HeaderByte {
 /*
 DEVICE AND SERVER GLOBAL STRUCTS
 */
+#[derive(Debug, Deserialize, Copy, Clone)]
+pub struct FinalVeriCleanUp {
+    #[serde(rename = "device_signature", with="BigArray")]
+    pub device_signature: [u8; 64],
+    #[serde(rename = "server_challenge")]
+    pub server_challenge: u32,
+    #[serde(rename = "nonce")]
+    pub nonce: u32
+}
+
+impl FinalVeriCleanUp {
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, ServerError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
+}
+
 //Device confirmation in enrollment initial 
 #[derive(Debug, Deserialize, Copy, Clone)]
 pub struct IsValid {
@@ -156,27 +173,41 @@ impl CryptoClient {
        Self { signing_key: signing_key, verifying_key: verifying_key } 
     }
 
-   
+    //generate server challenge
     pub fn gen_server_challenge() -> Result<u32, ServerError> {
         Ok(SysRng.try_next_u32()?)
     }
 
+    //generate signature base from given device pub, device id, nonce and server challenge
     pub fn gen_signature_base(device_pub: &[u8; 33], device_id: &[u8; 6], nonce: &u32, server_challenge: &u32) -> Result<Vec<u8>, ServerError> {
         let mut signature_base = Vec::new();
         write!(&mut signature_base, "{:?}{}{}{:?}", device_id, nonce, server_challenge, device_pub)?;
         Ok(signature_base)
     }
     
+    //generate server signature 
     pub fn gen_signature(&self, signature_base: &Vec<u8>) -> Result<(Signature, RecoveryId), ServerError>{
         let (signature, recovery_id) = self.signing_key.sign_digest(|hash_handle: &mut Sha256| {hash_handle.update(&signature_base)});
         Ok((signature, recovery_id))
     }
-
+    
+    //generate public key as bytes
     pub fn gen_pub_key_bytes(&self) -> Result<[u8; 65], ServerError>{
         let mut vkey_output = [0u8; 65];
         let vkey_bytes = self.verifying_key.to_sec1_bytes();
         vkey_output.copy_from_slice(&vkey_bytes);
         Ok(vkey_output)
+    }
+
+    //verify device signature
+    //TODO extract struct out of enum in a different method
+    pub fn verify_ecdsa_signature(device_pub_bytes: &[u8; 33], device_signature_bytes: &[u8; 64], signature_base: u32) -> Result<(), ServerError> {
+        let device_signature = Signature::from_slice(device_signature_bytes)?;
+        let signature_base_bytes = signature_base.to_be_bytes();
+
+        let device_pub = VerifyingKey::from_sec1_bytes(device_pub_bytes)?;
+        device_pub.verify(&signature_base_bytes, &device_signature)?;
+        Ok(())
     }
 }
 
@@ -246,7 +277,7 @@ impl EnrollmentClient {
                     return Err(ServerError::InvalidReceiveEnrollment)
                 };
             }
-            _=>{ return Err(ServerError::InvalidStruct) }
+            _=> { return Err(ServerError::InvalidStruct) }
         }
     }
 }
