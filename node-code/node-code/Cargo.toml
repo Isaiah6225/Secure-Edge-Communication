@@ -66,7 +66,7 @@ heapless = "0.9.3"
 serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.151", default-features = false, features = ["alloc"] }
 serde-big-array = {version = "0.5.1", default-features = false }
-p256 = { version = "0.14.0", default-features = false, features = ["alloc", "ecdsa", "ecdsa-core", "pem", "pkcs8"] }
+p256 = { version = "0.14.0", default-features = false, features = ["alloc", "ecdh", "ecdsa", "ecdsa-core", "pem", "pkcs8"] }
 
 
 [profile.dev]

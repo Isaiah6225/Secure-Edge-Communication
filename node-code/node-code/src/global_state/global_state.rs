@@ -1,5 +1,5 @@
 use crate::{
-    boot::{check_provision, check_ecdsa_set, gen_ecc},
+    boot::{check_provision, check_ecdsa_set, gen_ecc, gen_ecdh},
     common::{
         structs::{
             StorageManager,
@@ -10,7 +10,9 @@ use crate::{
             ProvisionStatus,
             EnrollmentSteps,
             EccStatus,
-            WifiCommand
+            WifiCommand,
+            StdCommSteps,
+            SendSteps
         }
     },
     
@@ -50,7 +52,8 @@ pub async fn manage_global_state(
                     ProvisionStatus::NotSet => {
                         info!("[Global State: IsProvisioned] provision flag not set setting to 0 moving to enrollment");
                         //replaying 'IsProvisioned' state in case the flag cannot be set. 
-                        match manage_storage.set_provision_flag() {
+                        let value: u8 = 0; 
+                        match manage_storage.set_provision_flag(value) {
                             Ok(()) => {
                                 state = GlobalStates::Enrollment;
                             }, 
@@ -113,7 +116,7 @@ pub async fn manage_global_state(
                         //move to initial communication phase
                         EnrollmentSteps::Enrollment(priv_key, pub_key) => {
                             info!("[Global State: EnrollmentSteps::Enrollment] moving to EnrollmentSteps::Enrollment");
-                            gsc_manager.send_enrollment(&EnrollmentSteps::Enrollment(priv_key, pub_key)).await;
+                            gsc_manager.send_enrollment(&SendSteps::Enroll(EnrollmentSteps::Enrollment(priv_key, pub_key))).await;
 
                             //TODO figure out a better way to create a method around this block
                             match gsc_manager.receive_enrollment().await {
@@ -131,8 +134,32 @@ pub async fn manage_global_state(
             }
             
             //standard communication state
-            GlobalStates::StandardComm => {
+            GlobalStates::StandardComm => { 
                 info!("Standard Communication state");
+                /*update provision flag
+                let value: u8 = 1; 
+                match manage_storage.set_provision_flag(value) {
+                    Ok(()) => { continue; }, 
+
+                    Err(_) => {
+                        state = GlobalStates::StandardComm; 
+                    }
+                }
+                */
+                //send data to wifi_task
+                let ecdh_pub_key = gen_ecdh::gen_ecdh_pub();
+                let std_comm_steps = SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key));
+                gsc_manager.send_session(&std_comm_steps).await;
+                match gsc_manager.receive_enrollment().await {
+                    WifiCommand::Success => {
+                        info!("[Global State: StandardComm] success received from wifi_task breaking loop");
+                        break;
+                    }
+                    WifiCommand::Failure => {
+                        info!("[Global State: EnrollmentSteps::Enrollment] failure received from wifi_task retrying standard comm");
+                        state = GlobalStates::StandardComm;
+                    }
+                }
             }            
         }
     }

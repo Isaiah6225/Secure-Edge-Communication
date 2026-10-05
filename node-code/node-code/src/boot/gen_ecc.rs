@@ -3,9 +3,7 @@ use p256::{
     ecdsa::{SigningKey, VerifyingKey},
     elliptic_curve::Generate
 };
-use esp_hal::{
-    rng::Trng
-};
+use esp_hal::rng::Trng;
 
 pub fn gen_key_pair() -> ([u8; 32], [u8; 33]){
     //unwrap is safe here because trng source is set in main

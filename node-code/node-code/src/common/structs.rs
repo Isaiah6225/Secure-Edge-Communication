@@ -29,7 +29,7 @@ use crate::{
     enrollment::format_enrollment_initial,
     common::{
         error::NodeError,
-        enums::{EnrollmentSteps, WifiCommand},
+        enums::{SendSteps, EnrollmentSteps, StdCommSteps, WifiCommand},
     },
     boot::{
         read_id,
@@ -65,10 +65,9 @@ impl<T: Platform> StorageManager<T> {
     }
 
     //set provision to nvs
-    pub fn set_provision_flag(&mut self) -> Result<(), NodeError> {
+    pub fn set_provision_flag(&mut self, value: u8) -> Result<(), NodeError> {
         let namespace = const {Key::from_str("pro_data")};
         let key = const {Key::from_str("is_pro")};
-        let value: u8 = 0;
 
         self.handle.set(&namespace, &key, value)?;
         Ok(())
@@ -191,26 +190,26 @@ impl WifiManager {
 
 //Global State Communicator Manager API
 pub struct GSCManager {
-    gsc_sender_handle: Sender<'static, CriticalSectionRawMutex, EnrollmentSteps, 8>,
+    gsc_sender_handle: Sender<'static, CriticalSectionRawMutex, SendSteps, 8>,
     wtc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, WifiCommand, 8>,
 }
 
 impl GSCManager {
     pub fn new(
-        gsc_sender_handle: Sender<'static, CriticalSectionRawMutex, EnrollmentSteps, 8>,
+        gsc_sender_handle: Sender<'static, CriticalSectionRawMutex, SendSteps, 8>,
         wtc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, WifiCommand, 8>, 
     ) -> Self {
         Self { gsc_sender_handle: gsc_sender_handle, wtc_receiver_handle: wtc_receiver_handle }
     }
 
-    pub async fn send_enrollment(&self, enrollment_steps: &EnrollmentSteps) {
+    pub async fn send_enrollment(&self, send_steps: &SendSteps) {
         info!("[GSCManager::send_enrollment]");
-        match enrollment_steps {
-            EnrollmentSteps::Enrollment(priv_key, pub_key) => {
+        match send_steps{
+            SendSteps::Enroll(EnrollmentSteps::Enrollment(priv_key, pub_key)) => {
                 info!("[GSCManager::send_enrollment] sending ENROLLMENT request to wifi_task.");
-                self.gsc_sender_handle.send(EnrollmentSteps::Enrollment(*priv_key, *pub_key)).await;
+                self.gsc_sender_handle.send(SendSteps::Enroll(EnrollmentSteps::Enrollment(*priv_key, *pub_key))).await;
             }, 
-            EnrollmentSteps::VerifyKeys => {} 
+            SendSteps::Enroll(EnrollmentSteps::VerifyKeys) | SendSteps::StdComm(StdCommSteps::StandardCommunication(_)) => {} 
         }
     }
 
@@ -227,6 +226,17 @@ impl GSCManager {
                 info!("[GSCManager::receive_enrollment] wifi_task sent succcess");
                 return WifiCommand::Success;
             }
+        }
+    }
+
+    pub async fn send_session(&self, send_steps: &SendSteps) {
+        info!("[GSCManager::send_enrollment]");
+        match send_steps {
+            SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key)) => {
+                info!("[GSCManager::send_enrollment] sending STANDARD COMM request to wifi_task");
+                self.gsc_sender_handle.send(SendSteps::StdComm(StdCommSteps::StandardCommunication(*ecdh_pub_key))).await;
+            },
+            SendSteps::Enroll(EnrollmentSteps::VerifyKeys) | SendSteps::Enroll(EnrollmentSteps::Enrollment(..)) => {} 
         }
     }
 }

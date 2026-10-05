@@ -32,21 +32,23 @@ pub enum WifiConfigStatus {
     Down
 }
 
+// send step 
+pub enum SendSteps {
+    Enroll(EnrollmentSteps),
+    StdComm(StdCommSteps),
+}
+
 //enrollment sub steps
-//TODO every enum below this can be refactor to be one enum for simplicity
 pub enum EnrollmentSteps {
     VerifyKeys,
     Enrollment([u8; 32], [u8; 33]),
 }
 
-//channel communication
-/*
-#[derive(Debug)]
-pub enum WifiCommand {
-    SendEnrlInitial,
-    SendFinalVerification,
+//Standard Communication sub steps 
+pub enum StdCommSteps {
+    StandardCommunication([u8; 65])
 }
-*/
+
 
 //wifi command for Wifi task to communicate with Global state communicator
 pub enum WifiCommand {

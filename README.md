@@ -4,7 +4,7 @@ Lightweight enrollment and secure session protocol for resource-constrained
 embedded devices (ESP32-S3), built as the communication foundation for a 
 distributed embedded ML runtime.
 
-## Status: In progress (~85% complete)
+## Status: In progress (~90% complete)
 Device-side enrollment and session handshake implemented and tested. 
 Server-side (Fedora) enrollment verification implemented and tested.
 Device-side secure session encryption/decryption layer in progress.

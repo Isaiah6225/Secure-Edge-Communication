@@ -13,7 +13,7 @@ use embassy_sync::{
 };
 use crate::{
     common::{
-        enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
+        enums::{SendSteps, StdCommSteps, EnrollmentSteps, WifiConfigStatus, WifiCommand},
         structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl, CryptoClient, ReceivePacketFinVeri, ReceivePacketFinVeriClean},
     },
 };
@@ -23,7 +23,7 @@ use embassy_time::{Duration, Timer};
 #[embassy_executor::task]
 pub async fn wifi_task(
     manage_wifi: WifiManager,
-    gsc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, EnrollmentSteps, 8>,
+    gsc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, SendSteps, 8>,
     wtc_sender_handle: Sender<'static, CriticalSectionRawMutex, WifiCommand, 8>,
     mut wc_rec0: ReceiverWatch<'static, CriticalSectionRawMutex, WifiConfigStatus, 1>,
     ip_address: Ipv4Address, 
@@ -52,7 +52,7 @@ pub async fn wifi_task(
                 let state = gsc_receiver_handle.receive().await;
                 'session: loop {
                     match state {
-                        EnrollmentSteps::Enrollment(ecdsa_priv_key, ecdsa_pub_key) => {
+                        SendSteps::Enroll(EnrollmentSteps::Enrollment(ecdsa_priv_key, ecdsa_pub_key)) => {
                             /*
                             INITIAL SEND
                             */
@@ -260,10 +260,15 @@ pub async fn wifi_task(
                                 }
                             }
                         }
-                        EnrollmentSteps::VerifyKeys => todo!(),
+                        SendSteps::Enroll(EnrollmentSteps::VerifyKeys) => todo!(),
+                        SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key)) => {
+                            info!(" ");
+                        }
                     }
+                    
                 }
             }
+
             WifiConfigStatus::Down => {
                 info!("[wifi_task WifiConfigStatus::Down]"); 
                 Timer::after(Duration::from_secs(30)).await

@@ -29,7 +29,7 @@ use node_code::{
     global_state::global_state,
     common::{
         structs::{StorageManager, WifiManager, GSCManager, CryptoClient, net_task},
-        enums::{EnrollmentSteps, WifiConfigStatus, WifiCommand},
+        enums::{SendSteps, WifiConfigStatus, WifiCommand},
     },
     wifi_task::{wifi_task, wifi_config},
 };
@@ -50,7 +50,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 const WIFI_PASSWORD: &'static str = env!("WIFI_PASSWORD");
 const REMOTE_IP: &'static str = env!("REMOTE_IP");
 
-static GSC: Channel<CriticalSectionRawMutex, EnrollmentSteps, 8> = Channel::new();
+static GSC: Channel<CriticalSectionRawMutex, SendSteps, 8> = Channel::new();
 static WTC: Channel<CriticalSectionRawMutex, WifiCommand, 8> = Channel::new();
 static WC: Watch<CriticalSectionRawMutex, WifiConfigStatus, 1> = Watch::new();
 
