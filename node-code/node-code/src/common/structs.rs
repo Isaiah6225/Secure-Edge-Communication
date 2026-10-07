@@ -26,7 +26,7 @@ use alloc::{
 };
 use esp_radio::wifi::Interface;
 use crate::{
-    enrollment::format_enrollment_initial,
+    formatter::{format_enrollment, format_secure_session},
     common::{
         error::NodeError,
         enums::{SendSteps, EnrollmentSteps, StdCommSteps, WifiCommand},
@@ -148,18 +148,28 @@ impl WifiManager {
         }
     }
 
+    pub fn gen_secure_session_init(ecdh_pub_key: &[u8; 65]) -> SendPacketSecSesInit {
+        let device_id = read_id::read_mac();
+        let nonce = gen_nonce::gen_nonce();
+        let header_byte: u8 = 1;
+
+        let command = format_secure_session::format_secure_session_init(header_byte, nonce, &ecdh_pub_key, device_id);
+        info!("[WifiManager::gen_secure_session] generated secure session initial packet and returning it");
+        command
+    }
+
     pub fn gen_enrollment_final(server_challenge: u32, device_signature_bytes: [u8; 64]) -> SendPacketFinalVerification {
         let header_byte: u8 = 101;
         let nonce = gen_nonce::gen_nonce();
 
-        let command = format_enrollment_initial::format_enrollment_final_verification(header_byte, device_signature_bytes, server_challenge, nonce);
+        let command = format_enrollment::format_enrollment_final_verification(header_byte, device_signature_bytes, server_challenge, nonce);
         info!("[WifiManager::gen_enrollment] generated enrollment final verification packet and returning it");
         command
     }
 
     pub fn gen_enrollment_initial_confirmation(is_valid: u8) -> SendConfirmationEnrl {
         let header_byte: u8 = 100;
-        let command = format_enrollment_initial::format_enrollment_initial_confirmation(is_valid, header_byte);
+        let command = format_enrollment::format_enrollment_initial_confirmation(is_valid, header_byte);
         info!("[WifiManager::gen_enrollment] generated enrollment confirmation packet and returning it");
         command
     }
@@ -169,7 +179,7 @@ impl WifiManager {
         let nonce = gen_nonce::gen_nonce();
         let header_byte: u8 = 0;
 
-        let command = format_enrollment_initial::format_enrollment_initial(header_byte, mac, sv_key_bytes, nonce);
+        let command = format_enrollment::format_enrollment_initial(header_byte, mac, sv_key_bytes, nonce);
         info!("[WifiManager::gen_enrollment] generated enrollment packet and returning it.");
         command 
     }
@@ -294,7 +304,46 @@ pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
     runner.run().await;
 }
 
-// Data structs 
+/* 
+ DATA STRUCTS SECURE SESSION
+ */
+
+#[derive(Debug, Deserialize)]
+pub struct ReceivePacketSecSesInit {
+    #[serde(rename = "signature_bytes", with="BigArray")]
+    pub signature_bytes: [u8; 64],
+    #[serde(rename = "server_ecdh_pub", with="BigArray")]
+    pub server_ecdh_pub: [u8; 65],
+    #[serde(rename = "nonce")]
+    pub nonce: u8,
+}
+
+impl ReceivePacketSecSesInit {
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, NodeError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
+}
+
+#[derive(Debug)]
+pub struct SendPacketSecSesInit {
+    pub header_byte: u8,
+    pub nonce: u32,
+    pub ecdh_pub_key: [u8; 65], 
+    pub device_id: [u8; 6]
+}
+
+
+
+impl Display for SendPacketSecSesInit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "header_byte: {:?}, nonce: {:?}, ecdh_pub_key:{:?}, device_id: {:?}", self.header_byte, self.nonce, self.ecdh_pub_key, self.device_id)
+    }
+}
+
+/* 
+ DATA STRUCTS ENROLLMENT
+ */
 
 #[derive(Debug, Deserialize)]
 pub struct ReceivePacketFinVeriClean {

@@ -1,5 +1,5 @@
 use crate::{
-    database::{check_device_db, save_device_db},
+    database::{check_device_db, save_device_db, update_device_status_db},
     common::{
         enums::DBOps,
         errors::ServerError
@@ -50,6 +50,22 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
                     println!("[database::manage_db] send to manage_enrollment failed receiver dropped");
                 };
             },
+
+            Some(DBOps::UpdateDeviceStatus(sender, device)) => {
+                let check_update_status = match update_device_status_db::update_device_status(&db_conn, device.device_id, device.device_pub, device.save_op) {
+                    Ok(()) => {
+                        println!("[database::manage_db] update device status operation successful"); 
+                        ()
+                    }, 
+                    Err(e) => {
+                        println!("[database::manage_db] update operation failed with: {:?}", e);
+                    }, 
+                };
+                if let Err(_) = sender.send(Ok(check_update_status)) {
+                    println!("[database::manage_db] send to manage_enrollment failed receiver dropped");
+                };
+            }, 
+
             None => break,
         };
     }

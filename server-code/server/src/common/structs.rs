@@ -33,7 +33,7 @@ pub struct DeviceStdComm {
     #[serde(rename = "device_id")]
     pub device_id: [u8; 6],
     #[serde(rename = "device_pub", with = "BigArray")]
-    pub device_pub: [u8; 33],
+    pub device_pub: [u8; 65],
     #[serde(rename = "nonce")]
     pub nonce: u32 
 }
@@ -124,6 +124,12 @@ pub struct SaveDevicePayload {
     pub nonce: u32,
     pub save_op: DBSave,
 }
+
+pub struct UpdateDeviceStatusPayload {
+    pub device_id: [u8; 6], 
+    pub device_pub: [u8; 33],
+    pub save_op: DBSave, 
+}
 //END
 
 //API for interacting with the Database task 
@@ -147,7 +153,7 @@ impl DBClient {
                 res
             },
             Err(e)=> {
-                println!("not cool man");
+                println!("[db_client::check_dev_db] receive oneshot error: {:?}", e);
                 return Err(ServerError::OneshotRecvErr(e))
             },
         }
@@ -157,6 +163,13 @@ impl DBClient {
         let (tx, rx) = oneshot::channel();
         let save_dev_payload = SaveDevicePayload { device_id: *device_id, device_pub: *device_pub, nonce: *nonce, save_op: save_op};
         self.db_sender_handle.send(DBOps::SaveDevice(tx, save_dev_payload)).await?;
+        rx.await?
+    }
+
+    pub async fn update_dev_db(&mut self, device_id: &[u8; 6], device_pub: &[u8; 33], save_op: DBSave) -> Result<(), ServerError> {
+        let (tx, rx) = oneshot::channel(); 
+        let update_dev_status_payload = UpdateDeviceStatusPayload { device_id: *device_id, device_pub: *device_pub, save_op: save_op };
+        self.db_sender_handle.send(DBOps::UpdateDeviceStatus(tx, update_dev_status_payload)).await?;
         rx.await?
     }
 }

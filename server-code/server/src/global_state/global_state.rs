@@ -93,6 +93,9 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     let (signature_final,  _) = crypto_client.gen_signature(&signature_base_final)?;
     let signature_bytes_final = &signature_final.to_vec();
 
+    //update device record
+    db_client.update_dev_db(&data_parsed.device_id, &data_parsed.device_pub, DBSave::Verified).await?;
+
     if let Err(e) = write!(
         init_send_buffer, 
         r#"{{"signature_bytes": {:?}, "signature_base": {:?}, "is_verify": {:?}}}"#,
@@ -106,6 +109,18 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     Ok(())
 }
 
-pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: DeviceStdComm, mut db_client: DBClient) -> Result<(), ServerError>{
-    todo!(); 
+pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: DeviceStdComm, mut db_client: DBClient) -> Result<(), ServerError> {
+    //set up crypto client
+    println!("[manage_enrollment] setting up crypto client");
+    let read_verifying_key = VerifyingKey::read_public_key_pem_file("./pub_key.pem")?;
+    let read_signing_key = SigningKey::read_pkcs8_pem_file("./priv_key.pem")?;
+    let crypto_client = CryptoClient::new(read_signing_key, read_verifying_key);
+
+    //set up network client
+    println!("[manage_enrollment] setting up network client");
+    let network_client = NetworkClient::new(&stream); 
+
+    //check if device is verified
+    check_device_id::check_id(&data_parsed.device_id)?;
+    Ok(())
 }

@@ -14,7 +14,7 @@ use embassy_sync::{
 use crate::{
     common::{
         enums::{SendSteps, StdCommSteps, EnrollmentSteps, WifiConfigStatus, WifiCommand},
-        structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl, CryptoClient, ReceivePacketFinVeri, ReceivePacketFinVeriClean},
+        structs::{SendPacketInitialEnrl, WifiManager, ReceivePacketInitialEnrl, CryptoClient, ReceivePacketFinVeri, ReceivePacketFinVeriClean, ReceivePacketSecSesInit},
     },
 };
 use log::info;
@@ -30,7 +30,6 @@ pub async fn wifi_task(
     crypto_client: CryptoClient
 ) {
     //set socket buffers and setting write retry count
-    //1792
     let mut rx_buffer = [0; 2048];
     let mut tx_buffer = [0; 1536];
     let mut read_buffer = [0; 2048];
@@ -262,7 +261,89 @@ pub async fn wifi_task(
                         }
                         SendSteps::Enroll(EnrollmentSteps::VerifyKeys) => todo!(),
                         SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key)) => {
-                            info!(" ");
+                            info!("[wifi_task EnrollmentSteps::Enrollment]"); 
+                            //create socket with buffers
+                            let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
+                            tcp_socket.set_timeout(Some(Duration::from_secs(10)));
+
+                            //format initial packet 
+                            let std_init_packet = WifiManager::gen_secure_session_init(&ecdh_pub_key); 
+                            info!("[wifi_task SecureSession::Initial] created init packet: {:?}", std_init_packet);
+
+                            //connect to endpoint
+                            info!("[wifi_task] SecureSession::Initial] trying to connect to remote endpoint");
+                            let response = tcp_socket.connect(
+                                IpEndpoint{
+                                    addr: IpAddress::Ipv4(ip_address),
+                                    port:7979,
+                                }
+                            ).await;
+                             
+                            //handle error in case of connect error 
+                            if let Err(e) = response {
+                                info!("[wifi_task] SecureSession::Initial] error from socket connect: {e:?}");
+                                info!("[wifi_task] SecureSession::Initial] sending response to GSC to retry SecureSession::Initial");
+                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                break 'session;
+                            }
+
+                            info!("[wifi_task] SecureSession::Initial] remote endpoint successfully connected to moving to send packet");
+                            'initial_send: loop {
+                                info!("[wifi_task] SecureSession::Initial] write retry count before entering if statement: {}", write_retry_count);
+                                //check write retry_count
+                                if write_retry_count < 3 {
+                                    let mut init_send_buffer = String::<512>::new();
+                                    info!("[wifi_task] SecureSession::Initial] created buffer to send data to remote server");
+
+                                    if let Ok(_) = write!(
+                                        init_send_buffer,
+                                        r#"{{"header_byte": {:?}, "nonce": {:?}, "device_id": {:?}, "ecdh_pub_key": {:?}}}"#,
+                                        std_init_packet.header_byte, std_init_packet.nonce, std_init_packet.device_id, std_init_packet.ecdh_pub_key
+                                    ) {
+                                        info!("[wifi_task] SecureSession::Initial] successfully wrote data to buffer");
+                                        info!("[wifi_task] SecureSession::Initial] buffer: {:?}", init_send_buffer);
+                                        let std_init_request = tcp_socket.write(init_send_buffer.as_bytes()).await;
+
+                                        if let Err(e) = std_init_request {
+                                            info!("[wifi_task] SecureSession::Initial] buffer failed to create with: {e:?}. Retrying the buffer creation to send");
+                                            write_retry_count += 1;
+                                            info!("[wifi_task] SecureSession::Initial] write retry count: {}", write_retry_count);
+                                        } else {
+                                            info!("[wifi_task] SecureSession::Initial] successfully sent written buffer and keeping buffer alive");
+                                            break 'initial_send; 
+                                        }
+                                    } else {
+                                        info!("[wifi_task] SecureSession::Initial] write failed procing write retry count: {}", write_retry_count);
+                                        write_retry_count += 1;
+                                    }
+                                } else {
+                                    info!("[wifi_task SecureSession::Initial] write failed after 3 attempts. sending failure response to GSC to retry EnrollmentSteps::Enrollment");
+                                    write_retry_count = 0;
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
+                                }
+                            }
+                            /*
+                             Secure Session Init Read
+                            */
+                            info!("[wifi_task SecureSession::InitalRead] awaitng bytes in rx buf");
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task SecureSession::InitialRead] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketSecSesInit::new(s);
+                                        info!("[wifi_task SecureSession::InitialRead] parsed_data {:?}", parsed_receive_data);
+                                    }
+                                }
+                                
+                                Err(e) => {
+                                    info!("[wifi_task SecureSession::InitialRead] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
+                                }
+                            }
+
                         }
                     }
                     
