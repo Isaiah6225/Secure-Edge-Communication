@@ -240,13 +240,29 @@ impl GSCManager {
     }
 
     pub async fn send_session(&self, send_steps: &SendSteps) {
-        info!("[GSCManager::send_enrollment]");
+        info!("[GSCManager::send_secure_session]");
         match send_steps {
             SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key)) => {
-                info!("[GSCManager::send_enrollment] sending STANDARD COMM request to wifi_task");
+                info!("[GSCManager::send_secure_session] sending STANDARD COMM request to wifi_task");
                 self.gsc_sender_handle.send(SendSteps::StdComm(StdCommSteps::StandardCommunication(*ecdh_pub_key))).await;
             },
             SendSteps::Enroll(EnrollmentSteps::VerifyKeys) | SendSteps::Enroll(EnrollmentSteps::Enrollment(..)) => {} 
+        }
+    }
+
+    pub async fn receive_session(&self) -> WifiCommand {
+        info!("[GSCManager::receive_enrollment]");
+        let wt_response = self.wtc_receiver_handle.receive().await;
+        match wt_response {
+            WifiCommand::Failure => {
+                info!("[GSCManager::receive_enrollment] wifi_task sent failure returning EnrollmentSteps::Enrollment");
+                return WifiCommand::Failure;
+            }
+
+            WifiCommand::Success => {
+                info!("[GSCManager::receive_enrollment] wifi_task sent succcess");
+                return WifiCommand::Success;
+            }
         }
     }
 }

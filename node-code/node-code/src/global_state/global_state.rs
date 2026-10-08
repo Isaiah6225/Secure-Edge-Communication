@@ -17,6 +17,10 @@ use crate::{
     },
     
 };
+use embassy_sync::{
+    channel::Channel,
+    blocking_mutex::raw::CriticalSectionRawMutex,
+};
 use esp_storage::FlashStorage;
 use log::info;
 
@@ -24,6 +28,7 @@ use log::info;
 pub async fn manage_global_state(
     mut manage_storage: StorageManager<FlashStorage<'static>>, 
     gsc_manager: GSCManager,
+    gsc_channel: &'static Channel<CriticalSectionRawMutex, SendSteps, 8>
 )
 {
     let mut state = GlobalStates::IsProvisioned;
@@ -136,27 +141,20 @@ pub async fn manage_global_state(
             //standard communication state
             GlobalStates::StandardComm => { 
                 info!("Standard Communication state");
-                /*update provision flag
-                let value: u8 = 1; 
-                match manage_storage.set_provision_flag(value) {
-                    Ok(()) => { continue; }, 
+                //clearing channel queue for visibility of future messages
+                gsc_channel.clear(); 
 
-                    Err(_) => {
-                        state = GlobalStates::StandardComm; 
-                    }
-                }
-                */
                 //send data to wifi_task
                 let ecdh_pub_key = gen_ecdh::gen_ecdh_pub();
                 let std_comm_steps = SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key));
                 gsc_manager.send_session(&std_comm_steps).await;
-                match gsc_manager.receive_enrollment().await {
+                match gsc_manager.receive_session().await {
                     WifiCommand::Success => {
                         info!("[Global State: StandardComm] success received from wifi_task breaking loop");
                         break;
                     }
                     WifiCommand::Failure => {
-                        info!("[Global State: EnrollmentSteps::Enrollment] failure received from wifi_task retrying standard comm");
+                        info!("[Global State: StandardComm] failure received from wifi_task retrying standard comm");
                         state = GlobalStates::StandardComm;
                     }
                 }

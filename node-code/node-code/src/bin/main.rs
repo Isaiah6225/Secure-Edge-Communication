@@ -124,5 +124,5 @@ async fn main(spawner: Spawner) {
     spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0).unwrap());
     spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0, ip_address, crypto_client).unwrap());
     spawner.spawn(net_task(runner).unwrap());
-    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager).unwrap());
+    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager, &GSC).unwrap());
 }

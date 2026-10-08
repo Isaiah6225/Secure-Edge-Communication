@@ -36,7 +36,7 @@ pub async fn wifi_task(
     let mut write_retry_count = 0;
 
     info!("[wifi_task] starting wifi set up and send process");
-    loop {
+    'main: loop {
         //check wifi config
         info!("[wifi_task] checking config_state from wifi_config"); 
         let config_state = wc_rec0.get().await;
@@ -49,6 +49,7 @@ pub async fn wifi_task(
                 
                 //receive the state from global state communicator (GSC)
                 let state = gsc_receiver_handle.receive().await;
+                info!("[wifi_task] state: {:?}", state);
                 'session: loop {
                     match state {
                         SendSteps::Enroll(EnrollmentSteps::Enrollment(ecdsa_priv_key, ecdsa_pub_key)) => {
@@ -57,6 +58,7 @@ pub async fn wifi_task(
                             */
 
                             info!("[wifi_task EnrollmentSteps::Enrollment]"); 
+
                             //create socket with buffers
                             let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
                             tcp_socket.set_timeout(Some(Duration::from_secs(10)));
@@ -116,6 +118,7 @@ pub async fn wifi_task(
                                     info!("[wifi_task EnrollmentSteps::Initial] write failed after 3 attempts. sending failure response to GSC to retry EnrollmentSteps::Enrollment");
                                     write_retry_count = 0;
                                     wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    tcp_socket.close();
                                     break 'session;
                                 }
                             }
@@ -238,6 +241,8 @@ pub async fn wifi_task(
                                                     Ok(()) => {
                                                         info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] success!");
                                                         wtc_sender_handle.send(WifiCommand::Success).await;
+                                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] break main loop");
+                                                        break 'session;
                                                     },
                                                     Err(e) => {
                                                         info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] failed to parse data with : {:?}", e);
@@ -261,7 +266,7 @@ pub async fn wifi_task(
                         }
                         SendSteps::Enroll(EnrollmentSteps::VerifyKeys) => todo!(),
                         SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key)) => {
-                            info!("[wifi_task EnrollmentSteps::Enrollment]"); 
+                            info!("[wifi_task SecureSession::Initial]"); 
                             //create socket with buffers
                             let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
                             tcp_socket.set_timeout(Some(Duration::from_secs(10)));

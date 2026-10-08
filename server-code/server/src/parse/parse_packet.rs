@@ -9,6 +9,7 @@ use crate::{
 pub fn parse(data: &str) -> Result<ParsedStruct, ServerError> {
     let init_data = HeaderByte::new(data);
     let header_byte = init_data.unwrap().header_byte;
+    println!("[parse] header_byte={:?}", header_byte);
         
     match header_byte {
         0 => { 

@@ -166,6 +166,10 @@ impl DBClient {
         rx.await?
     }
 
+    pub async fn check_dev_status_db() -> Result<(), ServerError > {
+
+    }
+
     pub async fn update_dev_db(&mut self, device_id: &[u8; 6], device_pub: &[u8; 33], save_op: DBSave) -> Result<(), ServerError> {
         let (tx, rx) = oneshot::channel(); 
         let update_dev_status_payload = UpdateDeviceStatusPayload { device_id: *device_id, device_pub: *device_pub, save_op: save_op };
