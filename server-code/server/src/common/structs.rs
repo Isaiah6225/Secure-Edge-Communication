@@ -16,7 +16,10 @@ use tokio::{
     },
 };
 use p256::{
-   ecdsa::{signature::DigestSigner, SigningKey, VerifyingKey, RecoveryId, Signature, signature::Verifier},
+    ecdsa::{signature::DigestSigner, SigningKey, VerifyingKey, RecoveryId, Signature, signature::Verifier},
+    ecdh::EphemeralSecret,
+    Sec1Point, PublicKey, 
+    elliptic_curve::Generate
 };
 use rand::{
     TryRng,
@@ -130,6 +133,14 @@ pub struct UpdateDeviceStatusPayload {
     pub device_pub: [u8; 33],
     pub save_op: DBSave, 
 }
+
+pub struct IsDeviceVerifiedPayload {
+    pub device_id: [u8; 6],
+}
+
+pub struct DBEnrollmentStatus {
+    pub save_op: String
+}
 //END
 
 //API for interacting with the Database task 
@@ -166,11 +177,21 @@ impl DBClient {
         rx.await?
     }
 
-    /*
-    pub async fn check_dev_status_db() -> Result<(), ServerError > {
-
+    pub async fn is_dev_verified_db(&mut self, device_id: &[u8; 6]) -> Result<(), ServerError > {
+        let (tx, rx) = oneshot::channel();
+        let is_dev_verified_payload = IsDeviceVerifiedPayload { device_id: *device_id };
+        self.db_sender_handle.send(DBOps::IsDeviceVerified(tx, is_dev_verified_payload)).await?;
+        match rx.await {
+            Ok(res) => {
+                println!("[db_client::is_dev_verified] {:?}", res);
+                res
+            },
+            Err(e) => {
+                println!("[db_client::check_dev_db] receive oneshot error: {:?}", e);
+                return Err(ServerError::OneshotRecvErr(e))
+            },
+        }
     }
-    */
 
     pub async fn update_dev_db(&mut self, device_id: &[u8; 6], device_pub: &[u8; 33], save_op: DBSave) -> Result<(), ServerError> {
         let (tx, rx) = oneshot::channel(); 
@@ -192,6 +213,17 @@ impl CryptoClient {
        Self { signing_key: signing_key, verifying_key: verifying_key } 
     }
 
+    //generate ecdh public key from ephemeral secret
+    pub fn gen_ecdh_pub() -> Result<[u8; 65], ServerError> {
+        let mut ecdh_pub_output = [0u8; 65];
+        let secret = EphemeralSecret::generate();
+        let pub_key = Sec1Point::from(secret.public_key());
+
+        let pub_key_bytes = pub_key.as_bytes();
+        ecdh_pub_output.copy_from_slice(pub_key_bytes);
+        Ok(ecdh_pub_output)
+    }
+
     //generate server challenge
     pub fn gen_server_challenge() -> Result<u32, ServerError> {
         Ok(SysRng.try_next_u32()?)
@@ -202,6 +234,13 @@ impl CryptoClient {
         let mut signature_base = Vec::new();
         write!(&mut signature_base, "{:?}{}{}{:?}", device_id, nonce, server_challenge, device_pub)?;
         Ok(signature_base)
+    }
+
+    //generate signature base from given server ecdsa pub, device ecdh pub, nonce and server ecdh pub 
+    pub fn gen_sigunature_base_session(nonce: &u32, server_ecdh_pub: &[u8; 65], device_ecdh_pub: &[u8; 65], server_ecdsa_pub: &[u8; 65]) -> Result<Vec<u8>, ServerError> {
+        let mut signature_base_session = Vec::new(); 
+        write!(&mut signature_base_session, "{}{:?}{:?}{:?}", nonce, server_ecdh_pub, device_ecdh_pub, server_ecdsa_pub)?;
+        Ok(signature_base_session)
     }
     
     //generate server signature 

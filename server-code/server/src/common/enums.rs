@@ -6,7 +6,7 @@ use tokio::{
 };
 use strum::AsRefStr;
 use crate::common::{
-    structs::{UpdateDeviceStatusPayload, CheckDevicePayload, SaveDevicePayload, DeviceEnrl, DeviceStdComm, IsValid, FinalVeriCleanUp},
+    structs::{UpdateDeviceStatusPayload, CheckDevicePayload, SaveDevicePayload, DeviceEnrl, DeviceStdComm, IsValid, FinalVeriCleanUp, IsDeviceVerifiedPayload},
     errors::ServerError,
 };
 
@@ -25,7 +25,8 @@ pub enum MainFlow {
 pub enum DBOps {
     CheckDevice(Sender<Result<(), ServerError>>, CheckDevicePayload),
     SaveDevice(Sender<Result<(), ServerError>>, SaveDevicePayload),
-    UpdateDeviceStatus(Sender<Result<(), ServerError>>, UpdateDeviceStatusPayload)
+    UpdateDeviceStatus(Sender<Result<(), ServerError>>, UpdateDeviceStatusPayload),
+    IsDeviceVerified(Sender<Result<(), ServerError>>, IsDeviceVerifiedPayload)
 }
 
 #[derive(AsRefStr, Debug)]

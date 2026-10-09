@@ -23,6 +23,7 @@ pub enum ServerError {
     EmptyReceiveErr,
     InvalidReceiveEnrollment, 
     InvalidStruct,
+    DeviceNotVerifiedErr
 }
 
 impl Display for ServerError{
@@ -35,6 +36,7 @@ impl Display for ServerError{
             ServerError::EmptyReceiveErr => write!(f, "device sent empty message"),
             ServerError::InvalidReceiveEnrollment => write!(f, "device responded with invalid receive initial enrollment"),
             ServerError::InvalidStruct => write!(f, "unexpected struct received"),
+            ServerError::DeviceNotVerifiedErr => write!(f, "device enrollment_status does not equal 'Verified'"),
             _=> Ok(())
         }
     }

@@ -228,7 +228,7 @@ impl GSCManager {
         let wt_response = self.wtc_receiver_handle.receive().await;
         match wt_response {
             WifiCommand::Failure => {
-                info!("[GSCManager::receive_enrollment] wifi_task sent failure returning EnrollmentSteps::Enrollment");
+                info!("[GSCManager::receive_enrollment] wifi_task sent failure");
                 return WifiCommand::Failure;
             }
 
@@ -326,6 +326,8 @@ pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
 
 #[derive(Debug, Deserialize)]
 pub struct ReceivePacketSecSesInit {
+    #[serde(rename = "signature_base")]
+    pub signature_base: Vec<u8>,
     #[serde(rename = "signature_bytes", with="BigArray")]
     pub signature_bytes: [u8; 64],
     #[serde(rename = "server_ecdh_pub", with="BigArray")]
@@ -348,8 +350,6 @@ pub struct SendPacketSecSesInit {
     pub ecdh_pub_key: [u8; 65], 
     pub device_id: [u8; 6]
 }
-
-
 
 impl Display for SendPacketSecSesInit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

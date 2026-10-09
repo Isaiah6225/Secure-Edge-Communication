@@ -1,5 +1,5 @@
 use crate::{
-    database::{check_device_db, save_device_db, update_device_status_db},
+    database::{check_device_db, save_device_db, update_device_status_db, get_enrollment_status_db},
     common::{
         enums::DBOps,
         errors::ServerError
@@ -65,6 +65,28 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
                     println!("[database::manage_db] send to manage_enrollment failed receiver dropped");
                 };
             }, 
+
+            Some(DBOps::IsDeviceVerified(sender, device)) => {
+                let check_device_enrollment_status = match get_enrollment_status_db::get_enrollment_status(&db_conn, device.device_id) {
+                    Ok(device_verified) => {
+                        if device_verified == true {
+                            println!("[database::manage_db] device is verified");
+                            Ok(())
+                        } else {
+                            println!("[database::manage_db] device isn't verified");
+                            Err(ServerError::DeviceNotVerifiedErr)
+                        }
+                    }, 
+                    Err(e) => {
+                        println!("[database::manage_db] get operation failed with: {:?}", e);
+                        Err(e)
+                    }
+                };
+
+                if let Err(_) = sender.send(check_device_enrollment_status) {
+                    println!("[database::manage_db] send to manage_enrollment failed receiver dropped");
+                }
+            }
 
             None => break,
         };

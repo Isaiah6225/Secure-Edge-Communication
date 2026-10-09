@@ -302,7 +302,7 @@ pub async fn wifi_task(
 
                                     if let Ok(_) = write!(
                                         init_send_buffer,
-                                        r#"{{"header_byte": {:?}, "nonce": {:?}, "device_id": {:?}, "ecdh_pub_key": {:?}}}"#,
+                                        r#"{{"header_byte": {:?}, "nonce": {:?}, "device_id": {:?}, "device_pub": {:?}}}"#,
                                         std_init_packet.header_byte, std_init_packet.nonce, std_init_packet.device_id, std_init_packet.ecdh_pub_key
                                     ) {
                                         info!("[wifi_task] SecureSession::Initial] successfully wrote data to buffer");
@@ -332,6 +332,7 @@ pub async fn wifi_task(
                              Secure Session Init Read
                             */
                             info!("[wifi_task SecureSession::InitalRead] awaitng bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
                             match tcp_socket.read(&mut read_buffer).await {
                                 Ok(len) => {
                                     let received_data = &read_buffer[..len];

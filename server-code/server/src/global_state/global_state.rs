@@ -122,5 +122,32 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
 
     //check if device is verified
     check_device_id::check_id(&data_parsed.device_id)?;
+    db_client.is_dev_verified_db(&data_parsed.device_id).await?;
+
+    //write init secure sesson 
+    let server_pub_key_bytes = crypto_client.gen_pub_key_bytes()?;
+    let server_ecdh_pub = CryptoClient::gen_ecdh_pub()?;
+    let signature_base_session = CryptoClient::gen_sigunature_base_session(&data_parsed.nonce, &server_ecdh_pub, &data_parsed.device_pub, &server_pub_key_bytes)?;
+
+    let signature_session = crypto_client.gen_signature(&signature_base_session)?;
+    let signature_bytes_session = &signature_base_session.to_vec();
+
+    let mut init_send_buffer = String::<2048>::new();
+    if let Err(e) = write!(
+        init_send_buffer, 
+        r#"{{"signature_bytes": {:?}, "signature_base": {:?}, "nonce": {:?}, "server_ecdh_pub": {:?}}}"#,
+        signature_bytes_session, signature_base_session, data_parsed.nonce, server_ecdh_pub
+    ){ 
+        println!("[manage_enrollment] error from write {:?}", e); 
+    };
+    println!("[manage_enrollment] initial secure session message length: {:?}", init_send_buffer.len());
+    stream.try_write(init_send_buffer.as_bytes())?;
+    init_send_buffer.clear();
+
+    //read final veri from device 
+    println!("[manage_enrollment] waiting for device response"); 
+    let securekeyset_response = network_client.read_data().await?;
+    println!("[manage_enrollment] received response with: {:?}", securekeyset_response);
+
     Ok(())
 }
