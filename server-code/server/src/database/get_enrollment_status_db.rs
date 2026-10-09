@@ -6,7 +6,7 @@ use crate::common::{
 
 pub fn get_enrollment_status(db_conn: &Connection, device_id: [u8; 6]) -> Result<bool, ServerError> {
     let mut select_stmt = db_conn.prepare(
-        "SELECT enrollmennt_status FROM device  WHERE mac_address = :mac_address", 
+        "SELECT enrollment_status FROM device  WHERE mac_address = :mac_address", 
     )?;
     
     let result_stmt = select_stmt.query_one(
