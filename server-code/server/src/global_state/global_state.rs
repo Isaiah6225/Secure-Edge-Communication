@@ -18,7 +18,10 @@ use p256::{
     pkcs8::{DecodePrivateKey, DecodePublicKey},
 };
 use heapless::String;
-use std::fmt::Write;
+use std::{
+    fmt::Write,
+    io::Read,
+};
 
 pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut db_client: DBClient) -> Result<(), ServerError>{
     //set up crypto client
@@ -132,15 +135,15 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
     let (signature_session, recovery_id) = crypto_client.gen_signature(&signature_base_session)?;
     let signature_bytes_session = &signature_session.to_vec();
     println!("[manage_session] signature_bytes_session length: {:?}", signature_bytes_session.len());
-    println!("[manage_session] signature_base_session length: {:?}", signature_base_session.len());
+    println!("[manage_session] signature_base_session length non bytes: {:?}, as bytes: {:?}", signature_base_session.len(), signature_base_session.bytes());
     println!("[manage_session] server_ecdh_pub: {:?}", server_ecdh_pub.len());
 
 
     let mut init_send_buffer = String::<2048>::new();
     if let Err(e) = write!(
         init_send_buffer, 
-        r#"{{"signature_bytes": {:?}, "signature_base": {:?}, "nonce": {:?}, "server_ecdh_pub": {:?}}}"#,
-        signature_bytes_session, signature_base_session, data_parsed.nonce, server_ecdh_pub
+        r#"{{"signature_bytes": {:?}, "nonce": {:?}, "server_ecdh_pub": {:?}, "signature_base": {:?}}}"#,
+        signature_bytes_session, data_parsed.nonce, server_ecdh_pub, signature_base_session
     ){ 
         println!("[manage_enrollment] error from write {:?}", e); 
     };
