@@ -135,11 +135,12 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
     let (signature_session, recovery_id) = crypto_client.gen_signature(&signature_base_session)?;
     let signature_bytes_session = &signature_session.to_vec();
     println!("[manage_session] signature_bytes_session length: {:?}", signature_bytes_session.len());
-    println!("[manage_session] signature_base_session length non bytes: {:?}, as bytes: {:?}", signature_base_session.len(), signature_base_session.bytes());
+    println!("[manage_session] signature_base_session length non bytes: {:?}", signature_base_session.len());
     println!("[manage_session] server_ecdh_pub: {:?}", server_ecdh_pub.len());
 
+    println!("[manage_session] signature_base_session: {:?}", signature_base_session);
 
-    let mut init_send_buffer = String::<2048>::new();
+    let mut init_send_buffer = String::<3072>::new();
     if let Err(e) = write!(
         init_send_buffer, 
         r#"{{"signature_bytes": {:?}, "nonce": {:?}, "server_ecdh_pub": {:?}, "signature_base": {:?}}}"#,
@@ -148,7 +149,7 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
         println!("[manage_enrollment] error from write {:?}", e); 
     };
     println!("[manage_enrollment] initial secure session message length: {:?}", init_send_buffer.len());
-    println!("[manage_enrollment] initi secure session message: {:?}", init_send_buffer);
+    println!("[manage_enrollment] initial secure session message: {:?}", init_send_buffer);
     stream.try_write(init_send_buffer.as_bytes())?;
     init_send_buffer.clear();
 
