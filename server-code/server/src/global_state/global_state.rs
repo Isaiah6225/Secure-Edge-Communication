@@ -111,13 +111,13 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
 
 pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: DeviceStdComm, mut db_client: DBClient) -> Result<(), ServerError> {
     //set up crypto client
-    println!("[manage_enrollment] setting up crypto client");
+    println!("[manage_session] setting up crypto client");
     let read_verifying_key = VerifyingKey::read_public_key_pem_file("./pub_key.pem")?;
     let read_signing_key = SigningKey::read_pkcs8_pem_file("./priv_key.pem")?;
     let crypto_client = CryptoClient::new(read_signing_key, read_verifying_key);
 
     //set up network client
-    println!("[manage_enrollment] setting up network client");
+    println!("[manage_session] setting up network client");
     let network_client = NetworkClient::new(&stream); 
 
     //check if device is verified
@@ -128,11 +128,12 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
     let server_pub_key_bytes = crypto_client.gen_pub_key_bytes()?;
     let server_ecdh_pub = CryptoClient::gen_ecdh_pub()?;
     let signature_base_session = CryptoClient::gen_sigunature_base_session(&data_parsed.nonce, &server_ecdh_pub, &data_parsed.device_pub, &server_pub_key_bytes)?;
-    println!("[manage_session] signature_base_session length: {:?}", signature_base_session.len());
 
     let (signature_session, recovery_id) = crypto_client.gen_signature(&signature_base_session)?;
     let signature_bytes_session = &signature_session.to_vec();
     println!("[manage_session] signature_bytes_session length: {:?}", signature_bytes_session.len());
+    println!("[manage_session] signature_base_session length: {:?}", signature_base_session.len());
+    println!("[manage_session] server_ecdh_pub: {:?}", server_ecdh_pub.len());
 
 
     let mut init_send_buffer = String::<2048>::new();
@@ -144,6 +145,7 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
         println!("[manage_enrollment] error from write {:?}", e); 
     };
     println!("[manage_enrollment] initial secure session message length: {:?}", init_send_buffer.len());
+    println!("[manage_enrollment] initi secure session message: {:?}", init_send_buffer);
     stream.try_write(init_send_buffer.as_bytes())?;
     init_send_buffer.clear();
 
