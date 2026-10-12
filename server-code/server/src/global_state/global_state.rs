@@ -130,7 +130,7 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
     let signature_base_session = CryptoClient::gen_sigunature_base_session(&data_parsed.nonce, &server_ecdh_pub, &data_parsed.device_pub, &server_pub_key_bytes)?;
     println!("[manage_session] signature_base_session length: {:?}", signature_base_session.len());
 
-    let signature_session = crypto_client.gen_signature(&signature_base_session)?;
+    let (signature_session, recovery_id) = crypto_client.gen_signature(&signature_base_session)?;
     let signature_bytes_session = &signature_session.to_vec();
     println!("[manage_session] signature_bytes_session length: {:?}", signature_bytes_session.len());
 
