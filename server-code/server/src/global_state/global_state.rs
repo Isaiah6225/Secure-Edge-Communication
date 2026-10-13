@@ -140,7 +140,8 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
 
     println!("[manage_session] signature_base_session: {:?}", signature_base_session);
 
-    let mut init_send_buffer = String::<3072>::new();
+    let mut init_send_buffer = String::<2048>::new();
+    /*
     if let Err(e) = write!(
         init_send_buffer, 
         r#"{{"signature_bytes": {:?}, "nonce": {:?}, "server_ecdh_pub": {:?}, "signature_base": {:?}}}"#,
@@ -148,6 +149,16 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
     ){ 
         println!("[manage_enrollment] error from write {:?}", e); 
     };
+    */
+
+    if let Err(e) = write!(
+        init_send_buffer, 
+        r#"{{"signature_base": {:?}}}"#,
+        signature_base_session
+    ){ 
+        println!("[manage_enrollment] error from write {:?}", e); 
+    };
+
     println!("[manage_enrollment] initial secure session message length: {:?}", init_send_buffer.len());
     println!("[manage_enrollment] initial secure session message: {:?}", init_send_buffer);
     stream.try_write(init_send_buffer.as_bytes())?;
