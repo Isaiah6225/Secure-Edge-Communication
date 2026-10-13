@@ -113,6 +113,9 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
 }
 
 pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: DeviceStdComm, mut db_client: DBClient) -> Result<(), ServerError> {
+    let mut init_send_buffer = String::<2048>::new();
+    init_send_buffer.clear();
+
     //set up crypto client
     println!("[manage_session] setting up crypto client");
     let read_verifying_key = VerifyingKey::read_public_key_pem_file("./pub_key.pem")?;
@@ -134,13 +137,15 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
 
     let (signature_session, recovery_id) = crypto_client.gen_signature(&signature_base_session)?;
     let signature_bytes_session = &signature_session.to_vec();
+    let signature_base_slice = signature_base_session.as_slice();
+
     println!("[manage_session] signature_bytes_session length: {:?}", signature_bytes_session.len());
+    println!("[manage_session] signature_bytes_session slice length: {:?}", signature_base_slice.len());
     println!("[manage_session] signature_base_session length non bytes: {:?}", signature_base_session.len());
     println!("[manage_session] server_ecdh_pub: {:?}", server_ecdh_pub.len());
 
     println!("[manage_session] signature_base_session: {:?}", signature_base_session);
 
-    let mut init_send_buffer = String::<2048>::new();
     /*
     if let Err(e) = write!(
         init_send_buffer, 
@@ -153,8 +158,8 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
 
     if let Err(e) = write!(
         init_send_buffer, 
-        r#"{{"signature_base": {:?}}}"#,
-        signature_base_session
+        r#"{{"device_nonce": {:?}}}"#,
+        data_parsed.nonce
     ){ 
         println!("[manage_enrollment] error from write {:?}", e); 
     };

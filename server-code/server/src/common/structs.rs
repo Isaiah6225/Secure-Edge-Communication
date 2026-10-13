@@ -238,7 +238,7 @@ impl CryptoClient {
 
     //generate signature base from given server ecdsa pub, device ecdh pub, nonce and server ecdh pub 
     pub fn gen_sigunature_base_session(nonce: &u32, server_ecdh_pub: &[u8; 65], device_ecdh_pub: &[u8; 65], server_ecdsa_pub: &[u8; 65]) -> Result<Vec<u8>, ServerError> {
-        let mut signature_base_session = Vec::new(); 
+        let mut signature_base_session = Vec::new();
         write!(&mut signature_base_session, "{}{:?}{:?}{:?}", nonce, server_ecdh_pub, device_ecdh_pub, server_ecdsa_pub)?;
         Ok(signature_base_session)
     }
