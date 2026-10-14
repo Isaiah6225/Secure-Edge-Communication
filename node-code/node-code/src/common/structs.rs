@@ -332,8 +332,6 @@ pub struct ReceivePacketSecSesInit {
     pub signature_bytes: [u8; 64],
     #[serde(rename = "server_ecdh_pub", with="BigArray")]
     pub server_ecdh_pub: [u8; 65],
-    #[serde(rename = "nonce")]
-    pub nonce: u8,
 }
 
 impl ReceivePacketSecSesInit {

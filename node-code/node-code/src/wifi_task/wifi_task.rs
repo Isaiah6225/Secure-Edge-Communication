@@ -338,8 +338,30 @@ pub async fn wifi_task(
                                     let received_data = &read_buffer[..len];
                                     if let Ok(s) = core::str::from_utf8(received_data) {
                                         info!("[wifi_task SecureSession::InitialRead] received data from remote server with {:?}", s); 
-                                        let parsed_receive_data = ReceivePacketSecSesInit::new(s);
+                                        let parsed_receive_data = ReceivePacketInitialEnrl::new(s);
                                         info!("[wifi_task SecureSession::InitialRead] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(data) => {
+                                                info!("{:?}", std_init_packet.nonce);
+                                                let compare_result = CryptoClient::compare_nonce(&std_init_packet.nonce, &data.device_nonce);
+                                                let init_read = WifiManager::gen_enrollment_initial_confirmation(compare_result); 
+                                                let mut init_send_conf= String::<128>::new();
+                                                if let Err(e) = write!(
+                                                    init_send_conf,
+                                                    r#"{{"header_byte": {:?}, "is_valid": {:?}}}"#,
+                                                    init_read.header_byte, init_read.is_valid
+                                                ){
+                                                    info!("[wifi_task SecureSession::InitialRead] error from write {:?}", e);
+                                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                };
+                                                info!("[wifi_task SecureSession::InitialRead] sending data back to server: {:?}", init_send_conf);
+                                                tcp_socket.write(init_send_conf.as_bytes()).await;
+                                            }
+                                            Err(e) => {
+                                                info!("[wifi_task SecureSession::InitialRead] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
                                     }
                                 }
                                 
@@ -350,6 +372,25 @@ pub async fn wifi_task(
                                 }
                             }
 
+                            info!("[wifi_task SecureSession::InitalRead] awaitng bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task SecureSession::InitialRead] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketSecSesInit::new(s);
+                                        info!("[wifi_task SecureSession::InitialRead] parsed_data {:?}", parsed_receive_data);
+                                        
+                                    }
+                                }
+                                
+                                Err(e) => {
+                                    info!("[wifi_task SecureSession::InitialRead] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
+                                }
+                            }
                         }
                     }
                     

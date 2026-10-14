@@ -130,36 +130,10 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
     check_device_id::check_id(&data_parsed.device_id)?;
     db_client.is_dev_verified_db(&data_parsed.device_id).await?;
 
-    //write init secure sesson 
-    let server_pub_key_bytes = crypto_client.gen_pub_key_bytes()?;
-    let server_ecdh_pub = CryptoClient::gen_ecdh_pub()?;
-    let signature_base_session = CryptoClient::gen_sigunature_base_session(&data_parsed.nonce, &server_ecdh_pub, &data_parsed.device_pub, &server_pub_key_bytes)?;
-
-    let (signature_session, recovery_id) = crypto_client.gen_signature(&signature_base_session)?;
-    let signature_bytes_session = &signature_session.to_vec();
-    let signature_base_slice = signature_base_session.as_slice();
-
-    println!("[manage_session] signature_bytes_session length: {:?}", signature_bytes_session.len());
-    println!("[manage_session] signature_bytes_session slice length: {:?}", signature_base_slice.len());
-    println!("[manage_session] signature_base_session length non bytes: {:?}", signature_base_session.len());
-    println!("[manage_session] server_ecdh_pub: {:?}", server_ecdh_pub.len());
-
-    println!("[manage_session] signature_base_session: {:?}", signature_base_session);
-
-    /*
-    if let Err(e) = write!(
-        init_send_buffer, 
-        r#"{{"signature_bytes": {:?}, "nonce": {:?}, "server_ecdh_pub": {:?}, "signature_base": {:?}}}"#,
-        signature_bytes_session, data_parsed.nonce, server_ecdh_pub, signature_base_session
-    ){ 
-        println!("[manage_enrollment] error from write {:?}", e); 
-    };
-    */
-
     if let Err(e) = write!(
         init_send_buffer, 
         r#"{{"device_nonce": {:?}}}"#,
-        data_parsed.nonce
+        &data_parsed.nonce
     ){ 
         println!("[manage_enrollment] error from write {:?}", e); 
     };
@@ -171,8 +145,39 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
 
     //read final veri from device 
     println!("[manage_enrollment] waiting for device response"); 
-    let securekeyset_response = network_client.read_data().await?;
-    println!("[manage_enrollment] received response with: {:?}", securekeyset_response);
+    let initial_sec_response = network_client.read_data().await?;
+
+    println!("[manage_enrollment] received response with: {:?}", initial_sec_response);
+    EnrollmentClient::is_valid_enrollment(initial_sec_response)?;
+
+    //write init secure sesson 
+    let server_pub_key_bytes = crypto_client.gen_pub_key_bytes()?;
+    let server_ecdh_pub = CryptoClient::gen_ecdh_pub()?;
+    let signature_base_session = CryptoClient::gen_sigunature_base_session(&data_parsed.nonce, &server_ecdh_pub, &data_parsed.device_pub, &server_pub_key_bytes)?;
+
+    let (signature_session, recovery_id) = crypto_client.gen_signature(&signature_base_session)?;
+    let signature_bytes_session = &signature_session.to_vec();
+
+    println!("[manage_session] signature_bytes_session length: {:?}", signature_bytes_session.len());
+    println!("[manage_session] signature_base_session: {:?}", signature_base_session);
+    println!("[manage_session] signature_bytes_session length: {:?}", server_ecdh_pub.len());
+
+    if let Err(e) = write!(
+        init_send_buffer, 
+        r#"{{"signature_base": {:?}, "signature": {:?}, "server_ecdh": {:?}}}"#,
+        signature_base_session, signature_bytes_session, server_ecdh_pub
+    ){ 
+        println!("[manage_enrollment] error from write {:?}", e); 
+    };
+
+    println!("[manage_enrollment] initial secure session message length: {:?}", init_send_buffer.len());
+    println!("[manage_enrollment] initial secure session message: {:?}", init_send_buffer);
+    stream.try_write(init_send_buffer.as_bytes())?;
+    init_send_buffer.clear();
+
+    //read final veri from device 
+    println!("[manage_enrollment] waiting for device response"); 
+    let initial_sec_response = network_client.read_data().await?;
 
     Ok(())
 }
