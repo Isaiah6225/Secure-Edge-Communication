@@ -17,7 +17,7 @@ use p256::{
     ecdsa::{VerifyingKey, SigningKey},
     pkcs8::{DecodePrivateKey, DecodePublicKey},
 };
-use heapless::String;
+use heapless::{Vec as HVec, String};
 use std::{
     fmt::Write,
     io::Read,
@@ -113,8 +113,7 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
 }
 
 pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: DeviceStdComm, mut db_client: DBClient) -> Result<(), ServerError> {
-    let mut init_send_buffer = String::<2048>::new();
-    init_send_buffer.clear();
+    let mut session_send_buffer = HVec::<u8, 2048>::new();
 
     //set up crypto client
     println!("[manage_session] setting up crypto client");
@@ -131,17 +130,17 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
     db_client.is_dev_verified_db(&data_parsed.device_id).await?;
 
     if let Err(e) = write!(
-        init_send_buffer, 
+        session_send_buffer, 
         r#"{{"device_nonce": {:?}}}"#,
         &data_parsed.nonce
     ){ 
         println!("[manage_enrollment] error from write {:?}", e); 
     };
 
-    println!("[manage_enrollment] initial secure session message length: {:?}", init_send_buffer.len());
-    println!("[manage_enrollment] initial secure session message: {:?}", init_send_buffer);
-    stream.try_write(init_send_buffer.as_bytes())?;
-    init_send_buffer.clear();
+    println!("[manage_enrollment] initial secure session message length: {:?}", session_send_buffer.len());
+    println!("[manage_enrollment] initial secure session message: {:?}", session_send_buffer);
+    stream.try_write(session_send_buffer.as_mut_slice())?;
+    session_send_buffer.clear();
 
     //read final veri from device 
     println!("[manage_enrollment] waiting for device response"); 
@@ -163,17 +162,17 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
     println!("[manage_session] signature_bytes_session length: {:?}", server_ecdh_pub.len());
 
     if let Err(e) = write!(
-        init_send_buffer, 
+        session_send_buffer, 
         r#"{{"signature_base": {:?}, "signature": {:?}, "server_ecdh": {:?}}}"#,
         signature_base_session, signature_bytes_session, server_ecdh_pub
     ){ 
         println!("[manage_enrollment] error from write {:?}", e); 
     };
 
-    println!("[manage_enrollment] initial secure session message length: {:?}", init_send_buffer.len());
-    println!("[manage_enrollment] initial secure session message: {:?}", init_send_buffer);
-    stream.try_write(init_send_buffer.as_bytes())?;
-    init_send_buffer.clear();
+    println!("[manage_enrollment] initial secure session message length: {:?}", session_send_buffer.len());
+    println!("[manage_enrollment] initial secure session message: {:?}", session_send_buffer);
+    stream.try_write(session_send_buffer.as_mut_slice())?;
+    session_send_buffer.clear();
 
     //read final veri from device 
     println!("[manage_enrollment] waiting for device response"); 
