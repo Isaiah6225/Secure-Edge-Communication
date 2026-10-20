@@ -34,7 +34,7 @@ pub enum WifiConfigStatus {
 
 // send step 
 #[derive(Debug)]
-pub enum SendSteps {
+pub enum SendSteps{
     Enroll(EnrollmentSteps),
     StdComm(StdCommSteps),
 }
@@ -49,7 +49,7 @@ pub enum EnrollmentSteps {
 //Standard Communication sub steps 
 #[derive(Debug)]
 pub enum StdCommSteps {
-    StandardCommunication([u8; 65])
+    StandardCommunication
 }
 
 

@@ -3,7 +3,8 @@ use crate::{
     common::{
         structs::{
             StorageManager,
-            GSCManager
+            GSCManager, 
+            CryptoClient,
         },
         enums::{
             GlobalStates,
@@ -28,7 +29,7 @@ use log::info;
 pub async fn manage_global_state(
     mut manage_storage: StorageManager<FlashStorage<'static>>, 
     gsc_manager: GSCManager,
-    gsc_channel: &'static Channel<CriticalSectionRawMutex, SendSteps, 8>
+    gsc_channel: &'static Channel<CriticalSectionRawMutex, SendSteps, 8>,
 )
 {
     let mut state = GlobalStates::IsProvisioned;
@@ -145,17 +146,16 @@ pub async fn manage_global_state(
                 gsc_channel.clear(); 
 
                 //send data to wifi_task
-                let ecdh_pub_key = gen_ecdh::gen_ecdh_pub();
-                let std_comm_steps = SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key));
+
+                let std_comm_steps = SendSteps::StdComm(StdCommSteps::StandardCommunication);
                 gsc_manager.send_session(&std_comm_steps).await;
                 match gsc_manager.receive_session().await {
                     WifiCommand::Success => {
-                        info!("[Global State: StandardComm] success received from wifi_task breaking loop");
-                        break;
+                        info!("[Global State: StandardComm] success received from wifi_task");
                     }
                     WifiCommand::Failure => {
                         info!("[Global State: StandardComm] failure received from wifi_task retrying standard comm");
-                        state = GlobalStates::StandardComm;
+                        break;
                     }
                 }
             }            

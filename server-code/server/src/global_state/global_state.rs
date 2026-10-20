@@ -163,7 +163,7 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
 
     if let Err(e) = write!(
         session_send_buffer, 
-        r#"{{"signature_base": {:?}, "signature": {:?}, "server_ecdh": {:?}}}"#,
+        r#"{{"signature_base": {:?}, "signature_bytes": {:?}, "server_ecdh": {:?}}}"#,
         signature_base_session, signature_bytes_session, server_ecdh_pub
     ){ 
         println!("[manage_enrollment] error from write {:?}", e); 

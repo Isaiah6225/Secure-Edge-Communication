@@ -1,3 +1,16 @@
+use aes_gcm::{
+    aead::{Key as AEADKey, KeyInit},
+    Aes128Gcm, Nonce, Tag, AeadInOut,
+};
+
+use p256::{
+    Sec1Point, PublicKey,
+    ecdh::EphemeralSecret
+};
+
+use sha2::Sha256;
+use hkdf::GenericHkdf;
+use inout::InOutBuf;
 use embassy_net::{
     Stack,
     Runner
@@ -14,7 +27,7 @@ use esp_nvs::{
     platform::Platform,
 };
 use esp_hal::{
-    rng::TrngSource,
+    rng::{TrngSource, Trng},
 };
 use core::{
     fmt::Display,
@@ -39,7 +52,11 @@ use crate::{
 use log::info;
 use serde::Deserialize;
 use serde_big_array::BigArray;
-use p256::ecdsa::{VerifyingKey, SigningKey, Signature, signature::{Verifier, Signer}};
+use p256::{
+    elliptic_curve::Generate, 
+    ecdsa::{VerifyingKey, SigningKey, Signature, signature::{Verifier, Signer}},
+};
+
 
 extern crate alloc;
 
@@ -148,6 +165,13 @@ impl WifiManager {
         }
     }
 
+    pub fn gen_secure_key_setup<'a>(a_tag: Tag, nonce: [u8; 12], encrypted_buf: &'a mut [u8]) -> SendPacketSecureKS<'a> {
+        let header_byte: u8 = 113;
+        let command = format_secure_session::format_secure_key_setup(header_byte, nonce, a_tag, encrypted_buf);
+        info!("[WifiManager::gen_secure_session] generated secure session initial packet and returning it");
+        command
+    }
+
     pub fn gen_secure_session_init(ecdh_pub_key: &[u8; 65]) -> SendPacketSecSesInit {
         let device_id = read_id::read_mac();
         let nonce = gen_nonce::gen_nonce();
@@ -219,7 +243,7 @@ impl GSCManager {
                 info!("[GSCManager::send_enrollment] sending ENROLLMENT request to wifi_task.");
                 self.gsc_sender_handle.send(SendSteps::Enroll(EnrollmentSteps::Enrollment(*priv_key, *pub_key))).await;
             }, 
-            SendSteps::Enroll(EnrollmentSteps::VerifyKeys) | SendSteps::StdComm(StdCommSteps::StandardCommunication(_)) => {} 
+            SendSteps::Enroll(EnrollmentSteps::VerifyKeys) | SendSteps::StdComm(StdCommSteps::StandardCommunication) => {} 
         }
     }
 
@@ -242,9 +266,9 @@ impl GSCManager {
     pub async fn send_session(&self, send_steps: &SendSteps) {
         info!("[GSCManager::send_secure_session]");
         match send_steps {
-            SendSteps::StdComm(StdCommSteps::StandardCommunication(ecdh_pub_key)) => {
+            SendSteps::StdComm(StdCommSteps::StandardCommunication) => {
                 info!("[GSCManager::send_secure_session] sending STANDARD COMM request to wifi_task");
-                self.gsc_sender_handle.send(SendSteps::StdComm(StdCommSteps::StandardCommunication(*ecdh_pub_key))).await;
+                self.gsc_sender_handle.send(SendSteps::StdComm(StdCommSteps::StandardCommunication)).await;
             },
             SendSteps::Enroll(EnrollmentSteps::VerifyKeys) | SendSteps::Enroll(EnrollmentSteps::Enrollment(..)) => {} 
         }
@@ -313,6 +337,35 @@ impl CryptoClient {
             return Err(NodeError::FinalVerificationCleanUpErr)
         }
     }
+
+    pub fn gen_session_key<'a>(&self, ephemeral_secret: EphemeralSecret, server_ecdh: [u8; 65], data: &'a mut [u8]) -> Result<(Tag, &'a mut [u8], [u8; 12]), NodeError> {
+        //convert server ecdsa verifying key to bytes 
+        let mut vkey_ecdsa_bytes= [0u8; 33];
+        let server_ecdsa_key = self.server_pub_key.to_sec1_bytes();
+        vkey_ecdsa_bytes.copy_from_slice(&server_ecdsa_key);
+
+        //get shared secret from server public key
+        let server_ecdh_public = PublicKey::from_sec1_bytes(&server_ecdh)?;
+        let shared_secret = ephemeral_secret.diffie_hellman(&server_ecdh_public);
+
+
+        //generate OKM with device ID and shared secret
+        let device_id = read_id::read_mac();
+        let mut okm = [0u8; 16];
+        let hk: GenericHkdf<_> = shared_secret.extract::<Sha256>(Some(&device_id));
+        hk.expand(&device_id, &mut okm)?;
+
+        //generate aes gcm key and cipher from okm
+        //unwrap is safe here because trng source is set in main
+        let mut trng = Trng::try_new().expect("error: cannot access trng");
+        let nonce = Nonce::generate_from_rng(&mut trng); 
+        let mut nonce_bytes = [0u8; 12];
+        nonce_bytes.copy_from_slice(nonce.as_slice());
+        
+        let cipher = Aes128Gcm::new_from_slice(&okm)?;
+        let a_tag = cipher.encrypt_inout_detached(&nonce, &vkey_ecdsa_bytes, data.into())?;
+        Ok((a_tag, data, nonce_bytes))
+    }
 }
 
 #[embassy_executor::task]
@@ -321,8 +374,21 @@ pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
 }
 
 /* 
- DATA STRUCTS SECURE SESSION
- */
+DATA STRUCTS SECURE SESSION
+*/
+#[derive(Debug)]
+pub struct SendPacketSecureKS<'a> {
+    pub header_byte: u8, 
+    pub nonce: [u8; 12], 
+    pub a_tag: Tag, 
+    pub encrypted_buf: &'a [u8],
+}
+
+impl<'a> Display for SendPacketSecureKS<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "header_byte: {:?}, nonce: {:?}, a_tag: {:?}, encrypted_buf: {:?}", self.header_byte, self.nonce, self.a_tag, self.encrypted_buf)
+    }
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ReceivePacketSecSesInit {

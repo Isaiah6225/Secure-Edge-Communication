@@ -1,10 +1,14 @@
 use esp_hal::rng::{
     TrngError
 };
+
 use core::{
     fmt, 
     fmt::Display
 };
+
+use sha2::digest;
+
 
 //error enum
 #[derive(Debug)]
@@ -14,7 +18,11 @@ pub enum NodeError {
     SerdeErr(serde_json::Error),
     CryptoErr(p256::ecdsa::Error),
     InvalidKeyLength(usize),
-    FinalVerificationCleanUpErr
+    FinalVerificationCleanUpErr,
+    AesErr(aes_gcm::Error),
+    DigestLengthErr(digest::InvalidLength), 
+    HkdfErr(hkdf::InvalidLength),
+    ECCErr(p256::elliptic_curve::Error),
 }
 
 impl Display for NodeError{
@@ -24,6 +32,30 @@ impl Display for NodeError{
             NodeError::FinalVerificationCleanUpErr => write!(f, "server return final verification failed"), 
             _=> Ok(())
         }
+    }
+}
+
+impl From<p256::elliptic_curve::Error> for NodeError {
+    fn from(error: p256::elliptic_curve::Error) -> Self {
+        NodeError::ECCErr(error)
+    }
+}
+
+impl From<hkdf::InvalidLength> for NodeError {
+    fn from(error: hkdf::InvalidLength) -> Self {
+        NodeError::HkdfErr(error)
+    }
+}
+
+impl From<digest::InvalidLength> for NodeError {
+    fn from(error: digest::InvalidLength) -> Self {
+        NodeError::DigestLengthErr(error)
+    }
+}
+
+impl From<aes_gcm::Error> for NodeError {
+    fn from(error: aes_gcm::Error) -> Self {
+        NodeError::AesErr(error)
     }
 }
 
