@@ -43,7 +43,7 @@ pub async fn manage_global_state(
     loop {
         match state {
             GlobalStates::IsProvisioned => {
-                let get_pro_flag = manage_storage.get_provision_flag(); 
+                let get_pro_flag = manage_storage.get_provision_flag();
                 state = GlobalStates::Enrollment
             }
 

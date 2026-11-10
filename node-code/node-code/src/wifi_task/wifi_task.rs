@@ -58,7 +58,7 @@ pub async fn wifi_task(
                             tcp_socket.set_timeout(Some(Duration::from_secs(10)));
 
                             //connect to endpoint
-                            info!("[wifi_task]] trying to connect to remote endpoint");
+                            info!("[wifi_task] trying to connect to remote endpoint");
                             let response = tcp_socket.connect(
                                 IpEndpoint{
                                     addr: IpAddress::Ipv4(ip_address),
@@ -79,20 +79,22 @@ pub async fn wifi_task(
                                 r#"{{"header_byte": {:?}, "device_id": {:?}, "nonce": {:?}}}"#,
                                 init_packet.header_byte, init_packet.dev_mac_add, init_packet.dev_nonce
                             ){
-                                info!("[wifi_task] sending failure to gsc due to: {:?}", e);
+                                info!("[wifi_task] sending failure to gsc due to write error: {:?}", e);
                                 wtc_communicator.send_initial_enrollment(WifiResponse::Failure).await;
                                 break 'session; 
                             }
                             
                             //retry sending initial enrollment data three times
+                            info!("[wifi_task] writing packet to remote server");
                             WifiManager::retry_send_3(&send_buffer, &mut tcp_socket).await;
                             
-                            //determine if packet sent if may_send is false. if true break 
+                            /*determine if packet sent if may_send is false. if true break 
                             if tcp_socket.may_send() == true {
                                 info!("[wifi_task] sending failure to gsc due to packet sending error");
                                 wtc_communicator.send_initial_enrollment(WifiResponse::Failure).await;
                                 break 'session
                             } 
+                            */
                             //read initial packet from remote server
                             tcp_socket.wait_read_ready().await;
                         }

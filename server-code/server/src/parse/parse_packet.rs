@@ -7,6 +7,7 @@ use crate::{
 };
 
 pub fn parse(data: &str) -> Result<ParsedStruct, ServerError> {
+    println!("[parse::parse_packet] check for the header byte");
     let init_data = HeaderByte::new(data);
     let header_byte = init_data.unwrap().header_byte;
 

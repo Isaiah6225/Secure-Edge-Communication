@@ -26,10 +26,13 @@ impl WTCManager {
         info!("[WTCManager::send_initial_enrollment]");
         match wifi_res {
             WifiResponse::InitialEnrollment(init_packet_recv) => {
-                info!("[GSCManager::send_initial_enrollment] sending ENROLLMENT request to wifi_task.");
+                info!("[GSCManager::send_initial_enrollment] sending ENROLLMENT request to GS.");
                 self.wtc_sender_handle.send(WifiResponse::InitialEnrollment(init_packet_recv)).await;
             }, 
-            WifiResponse::Failure => (),
+            WifiResponse::Failure => {
+                info!("[GSCManager::send_initial_enrollment] sending WifiResponse Failure to GS.");
+                self.wtc_sender_handle.send(WifiResponse::Failure).await;
+            },
         }
     }
     

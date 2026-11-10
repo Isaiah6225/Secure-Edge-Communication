@@ -58,8 +58,6 @@ impl DeviceStdComm {
 pub struct DeviceEnrl {
     #[serde(rename = "device_id")]
     pub device_id: [u8; 6],
-    #[serde(rename = "device_pub", with = "BigArray")]
-    pub device_pub: [u8; 33],
     #[serde(rename = "nonce")]
     pub nonce: u32 
 }

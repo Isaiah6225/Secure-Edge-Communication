@@ -77,7 +77,7 @@ impl<T: Platform> StorageManager<T> {
     }
 
     //get ecdsa key pair from nvs
-    pub fn get_ecdsa(&mut self) -> Result<([u8; 32], [u8; 33]), NodeError> {
+    pub fn get_ecdsa(&mut self) -> Result<([u8; 32], [u8; 65]), NodeError> {
         let namespace = const {Key::from_str("ecdsa_keys")};
         
         let priv_key = const {Key::from_str("priv")};
@@ -87,7 +87,7 @@ impl<T: Platform> StorageManager<T> {
         let pub_key_value: Vec<u8> = self.handle.get(&namespace, &pub_key)?; 
 
         let final_priv_key_value: [u8; 32] = priv_key_value.try_into().map_err(|v: Vec<u8>| NodeError::InvalidKeyLength(v.len()))?;
-        let final_pub_key_value: [u8; 33] = pub_key_value.try_into().map_err(|v: Vec<u8>| NodeError::InvalidKeyLength(v.len()))?;
+        let final_pub_key_value: [u8; 65] = pub_key_value.try_into().map_err(|v: Vec<u8>| NodeError::InvalidKeyLength(v.len()))?;
 
         Ok((final_priv_key_value, final_pub_key_value))
     }
