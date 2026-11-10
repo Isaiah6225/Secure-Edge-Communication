@@ -48,6 +48,7 @@ RUN chown appuser /app/src
 
 COPY priv_key.pem /app/src
 COPY pub_key.pem /app/src
+COPY device_registry.db /app/src
 
 # What the container should run when it is started.
 CMD ["/bin/server"]
