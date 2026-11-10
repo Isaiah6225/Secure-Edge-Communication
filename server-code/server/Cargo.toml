@@ -8,9 +8,13 @@ name = "server-code"
 path = "./src/bin/main.rs"
 
 [dependencies]
+aes-gcm = "0.11.1"
 chrono = "0.4.44"
+digest = "0.11.3"
 dotenv = "0.15.0"
 heapless = "0.9.3"
+hkdf = "0.13.0"
+hybrid-array = "0.4.15"
 p256 = { version = "0.14.0", features = ["ecdh"] }
 rand = "0.10.2"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
