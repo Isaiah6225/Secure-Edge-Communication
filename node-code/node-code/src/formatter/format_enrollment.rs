@@ -2,16 +2,16 @@
 //for initial request from node.
 use crate::{
     common::{
-        structs::{SendPacketInitialEnrl, SendConfirmationEnrl, SendPacketFinalVerification},
+        data_structs::{SendPacketInitialEnrl, SendConfirmationEnrl, SendPacketFinalVerification},
     },
 };
 use log::info;
 
 
-pub fn format_enrollment_initial(header_byte: u8, mac: [u8; 6], sv_key_bytes: [u8; 33], nonce: u32) -> SendPacketInitialEnrl {
-    let spi = SendPacketInitialEnrl {dev_mac_add: mac, serialized_vkey:sv_key_bytes, device_nonce: nonce, header_byte: header_byte};
+pub fn format_enrollment_initial(header_byte: u8, mac: &[u8; 6], nonce: &u32) -> SendPacketInitialEnrl {
+    let spi = SendPacketInitialEnrl { dev_mac_add: *mac, dev_nonce: *nonce, header_byte: header_byte };
     info!("[format_enrollment] initial packet: {}", spi);
-    return SendPacketInitialEnrl { dev_mac_add: mac, serialized_vkey: sv_key_bytes, device_nonce: nonce, header_byte: header_byte }
+    return SendPacketInitialEnrl { header_byte: header_byte, dev_mac_add: *mac, dev_nonce: *nonce }
 }
 
 pub fn format_enrollment_initial_confirmation(is_valid: u8, header_byte: u8) -> SendConfirmationEnrl{

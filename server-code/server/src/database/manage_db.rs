@@ -14,14 +14,14 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
         match rx_mpsc.recv().await{
             Some(DBOps::CheckDevice(sender, device)) => {
                //receive device struct from global_state and check device in db 
-                let check_res = match check_device_db::check_device_db(&db_conn, device.device_id, device.device_pub){
+                let check_res = match check_device_db::check_device_db(&db_conn, device.device_id){
                     Ok(device_exists) => {
                         if device_exists == true {
-                            println!("[database::manage_db] check_device_db device found");
-                            Err(ServerError::DeviceExistErr)
-                        } else {
                             println!("[database::manage_db] check_device_db device not found");
                             Ok(())
+                        } else {
+                            println!("[database::manage_db] check_device_db device found");
+                            Err(ServerError::DeviceExistErr)
                         }
                     }, 
                     Err(e) => {
@@ -36,7 +36,7 @@ pub async fn manage_db(db_conn: Connection, mut rx_mpsc: Receiver<DBOps>) {
             },
 
             Some(DBOps::SaveDevice(sender, device)) => {
-                let check_save = match save_device_db::save_device(&db_conn, device.device_id, device.device_pub, device.nonce, device.save_op) {
+                let check_save = match save_device_db::save_device(&db_conn, device.device_id, device.save_op) {
                     Ok(()) => {
                         println!("[database::manage_db] save operation successful");
                         ()

@@ -2,12 +2,6 @@ use aes_gcm::{
     aead::{Key as AEADKey, KeyInit},
     Aes128Gcm, Nonce, Tag, AeadInOut,
 };
-
-use p256::{
-    Sec1Point, PublicKey,
-    ecdh::EphemeralSecret
-};
-
 use sha2::Sha256;
 use hkdf::GenericHkdf;
 use inout::InOutBuf;
@@ -15,53 +9,33 @@ use embassy_net::{
     Stack,
     Runner
 };
-use embassy_sync::{
-    channel::{Sender, Receiver},
-    blocking_mutex::raw::CriticalSectionRawMutex
-};
 use embassy_time::{Duration, Timer};
+use embassy_net::tcp::TcpSocket;
 use esp_nvs::{
     Nvs,
     Key,
-
     platform::Platform,
 };
-use esp_hal::{
-    rng::{TrngSource, Trng},
-};
-use core::{
-    fmt::Display,
-    fmt,
-};
-use alloc::{
-    string::String, 
-    vec::Vec,
-};
+use esp_hal::{rng::{TrngSource, Trng}};
+use heapless::String as HeaplessString;
+use alloc::{string::String, vec::Vec,};
 use esp_radio::wifi::Interface;
 use crate::{
-    formatter::{format_enrollment, format_secure_session},
-    common::{
-        error::NodeError,
-        enums::{SendSteps, EnrollmentSteps, StdCommSteps, WifiCommand},
-    },
-    boot::{
-        read_id,
-    },
-    nonce::gen_nonce,
+    common::error::NodeError,
+    boot::read_id,
 };
 use log::info;
-use serde::Deserialize;
-use serde_big_array::BigArray;
 use p256::{
     elliptic_curve::Generate, 
     ecdsa::{VerifyingKey, SigningKey, Signature, signature::{Verifier, Signer}},
+    Sec1Point, PublicKey,
+    ecdh::EphemeralSecret
 };
-
 
 extern crate alloc;
 
 //Storage Service API
-pub struct StorageManager<T: Platform>{
+pub struct StorageManager<T: Platform> {
     pub handle: Nvs<T>, 
 } 
 
@@ -103,7 +77,7 @@ impl<T: Platform> StorageManager<T> {
     }
 
     //get ecdsa key pair from nvs
-    pub fn get_ecc(&mut self) -> Result<([u8; 32], [u8; 33]), NodeError> {
+    pub fn get_ecdsa(&mut self) -> Result<([u8; 32], [u8; 33]), NodeError> {
         let namespace = const {Key::from_str("ecdsa_keys")};
         
         let priv_key = const {Key::from_str("priv")};
@@ -119,7 +93,7 @@ impl<T: Platform> StorageManager<T> {
     }
 
     //set ecdsa key pair from nvs 
-    pub fn set_ecc(&mut self, gen_priv_key: &[u8; 32], gen_pub_key: &[u8; 33]) -> Result<(), NodeError> {
+    pub fn set_ecdsa(&mut self, gen_priv_key: &[u8; 32], gen_pub_key: &[u8; 33]) -> Result<(), NodeError> {
         let namespace = const {Key::from_str("ecdsa_keys")};
         
         let priv_key = const {Key::from_str("priv")};
@@ -146,17 +120,23 @@ impl<T: Platform> StorageManager<T> {
 //Wifi Manager API 
 pub struct WifiManager{
     pub stack: Stack<'static>,
-    trng_source: TrngSource<'static>, 
 }
 
 impl WifiManager {
     pub fn new(
         stack: Stack<'static>, 
-        trng_source: TrngSource<'static> 
     ) -> Self {
-        Self { stack: stack, trng_source: trng_source }
+        Self { stack: stack }
     }
 
+    pub async fn retry_send_3(send_buffer: &HeaplessString<1024>, tcp_socket: &mut TcpSocket<'_>) {
+        for _i in 0..2{
+            let init_request = tcp_socket.write(send_buffer.as_bytes()).await;
+            if let Ok(usize) = init_request {
+                return;
+            }
+        }
+    }
     
     //clear buffer 
     pub fn clear_buffer<'a>(buffer: &'a mut [u8]) {
@@ -164,8 +144,9 @@ impl WifiManager {
             *x = 0;
         }
     }
-
-    pub fn gen_secure_key_setup<'a>(a_tag: Tag, nonce: [u8; 12], encrypted_buf: &'a mut [u8]) -> SendPacketSecureKS<'a> {
+    
+    /*
+    pub fn gen_secure_key_setup<'a>(a_tag: &'a mut [u8], nonce: [u8; 12], encrypted_buf: &'a mut [u8]) -> SendPacketSecureKS<'a> {
         let header_byte: u8 = 113;
         let command = format_secure_session::format_secure_key_setup(header_byte, nonce, a_tag, encrypted_buf);
         info!("[WifiManager::gen_secure_session] generated secure session initial packet and returning it");
@@ -198,15 +179,14 @@ impl WifiManager {
         command
     }
 
-    pub fn gen_enrollment_initial(sv_key_bytes: [u8; 33]) -> SendPacketInitialEnrl {
-        let mac = read_id::read_mac();
-        let nonce = gen_nonce::gen_nonce();
+    pub fn gen_enrollment_initial(hma: &[u8; 6], sv_key_bytes: &[u8; 33], nonce: &u32) -> SendPacketInitialEnrl {
         let header_byte: u8 = 0;
 
-        let command = format_enrollment::format_enrollment_initial(header_byte, mac, sv_key_bytes, nonce);
+        let command = format_enrollment::format_enrollment_initial(header_byte, hma, sv_key_bytes, nonce);
         info!("[WifiManager::gen_enrollment] generated enrollment packet and returning it.");
         command 
     }
+    */
 
     pub async fn check_stack(&self) {
         info!("[WifiManager::check_stack] checking to see if the stack is up.");
@@ -222,74 +202,6 @@ impl WifiManager {
     }
 }
 
-//Global State Communicator Manager API
-pub struct GSCManager {
-    gsc_sender_handle: Sender<'static, CriticalSectionRawMutex, SendSteps, 8>,
-    wtc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, WifiCommand, 8>,
-}
-
-impl GSCManager {
-    pub fn new(
-        gsc_sender_handle: Sender<'static, CriticalSectionRawMutex, SendSteps, 8>,
-        wtc_receiver_handle: Receiver<'static, CriticalSectionRawMutex, WifiCommand, 8>, 
-    ) -> Self {
-        Self { gsc_sender_handle: gsc_sender_handle, wtc_receiver_handle: wtc_receiver_handle }
-    }
-
-    pub async fn send_enrollment(&self, send_steps: &SendSteps) {
-        info!("[GSCManager::send_enrollment]");
-        match send_steps{
-            SendSteps::Enroll(EnrollmentSteps::Enrollment(priv_key, pub_key)) => {
-                info!("[GSCManager::send_enrollment] sending ENROLLMENT request to wifi_task.");
-                self.gsc_sender_handle.send(SendSteps::Enroll(EnrollmentSteps::Enrollment(*priv_key, *pub_key))).await;
-            }, 
-            SendSteps::Enroll(EnrollmentSteps::VerifyKeys) | SendSteps::StdComm(StdCommSteps::StandardCommunication) => {} 
-        }
-    }
-
-    pub async fn receive_enrollment(&self) -> WifiCommand {
-        info!("[GSCManager::receive_enrollment]");
-        let wt_response = self.wtc_receiver_handle.receive().await;
-        match wt_response {
-            WifiCommand::Failure => {
-                info!("[GSCManager::receive_enrollment] wifi_task sent failure");
-                return WifiCommand::Failure;
-            }
-
-            WifiCommand::Success => {
-                info!("[GSCManager::receive_enrollment] wifi_task sent succcess");
-                return WifiCommand::Success;
-            }
-        }
-    }
-
-    pub async fn send_session(&self, send_steps: &SendSteps) {
-        info!("[GSCManager::send_secure_session]");
-        match send_steps {
-            SendSteps::StdComm(StdCommSteps::StandardCommunication) => {
-                info!("[GSCManager::send_secure_session] sending STANDARD COMM request to wifi_task");
-                self.gsc_sender_handle.send(SendSteps::StdComm(StdCommSteps::StandardCommunication)).await;
-            },
-            SendSteps::Enroll(EnrollmentSteps::VerifyKeys) | SendSteps::Enroll(EnrollmentSteps::Enrollment(..)) => {} 
-        }
-    }
-
-    pub async fn receive_session(&self) -> WifiCommand {
-        info!("[GSCManager::receive_enrollment]");
-        let wt_response = self.wtc_receiver_handle.receive().await;
-        match wt_response {
-            WifiCommand::Failure => {
-                info!("[GSCManager::receive_enrollment] wifi_task sent failure returning EnrollmentSteps::Enrollment");
-                return WifiCommand::Failure;
-            }
-
-            WifiCommand::Success => {
-                info!("[GSCManager::receive_enrollment] wifi_task sent succcess");
-                return WifiCommand::Success;
-            }
-        }
-    }
-}
 
 //Crypto API 
 pub struct CryptoClient {
@@ -340,7 +252,7 @@ impl CryptoClient {
 
     pub fn gen_session_key<'a>(&self, ephemeral_secret: EphemeralSecret, server_ecdh: [u8; 65], data: &'a mut [u8]) -> Result<(Tag, &'a mut [u8], [u8; 12]), NodeError> {
         //convert server ecdsa verifying key to bytes 
-        let mut vkey_ecdsa_bytes= [0u8; 33];
+        let mut vkey_ecdsa_bytes= [0u8; 65];
         let server_ecdsa_key = self.server_pub_key.to_sec1_bytes();
         vkey_ecdsa_bytes.copy_from_slice(&server_ecdsa_key);
 
@@ -348,10 +260,10 @@ impl CryptoClient {
         let server_ecdh_public = PublicKey::from_sec1_bytes(&server_ecdh)?;
         let shared_secret = ephemeral_secret.diffie_hellman(&server_ecdh_public);
 
-
         //generate OKM with device ID and shared secret
         let device_id = read_id::read_mac();
         let mut okm = [0u8; 16];
+
         let hk: GenericHkdf<_> = shared_secret.extract::<Sha256>(Some(&device_id));
         hk.expand(&device_id, &mut okm)?;
 
@@ -363,7 +275,8 @@ impl CryptoClient {
         nonce_bytes.copy_from_slice(nonce.as_slice());
         
         let cipher = Aes128Gcm::new_from_slice(&okm)?;
-        let a_tag = cipher.encrypt_inout_detached(&nonce, &vkey_ecdsa_bytes, data.into())?;
+        let mut a_tag = cipher.encrypt_inout_detached(&nonce, &vkey_ecdsa_bytes, data.into())?;
+
         Ok((a_tag, data, nonce_bytes))
     }
 }
@@ -373,141 +286,3 @@ pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
     runner.run().await;
 }
 
-/* 
-DATA STRUCTS SECURE SESSION
-*/
-#[derive(Debug)]
-pub struct SendPacketSecureKS<'a> {
-    pub header_byte: u8, 
-    pub nonce: [u8; 12], 
-    pub a_tag: Tag, 
-    pub encrypted_buf: &'a [u8],
-}
-
-impl<'a> Display for SendPacketSecureKS<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "header_byte: {:?}, nonce: {:?}, a_tag: {:?}, encrypted_buf: {:?}", self.header_byte, self.nonce, self.a_tag, self.encrypted_buf)
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ReceivePacketSecSesInit {
-    #[serde(rename = "signature_base")]
-    pub signature_base: Vec<u8>,
-    #[serde(rename = "signature_bytes", with="BigArray")]
-    pub signature_bytes: [u8; 64],
-    #[serde(rename = "server_ecdh_pub", with="BigArray")]
-    pub server_ecdh_pub: [u8; 65],
-}
-
-impl ReceivePacketSecSesInit {
-    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, NodeError>{
-        let res = serde_json::from_str(string.as_ref())?;
-        Ok(res)
-    }
-}
-
-#[derive(Debug)]
-pub struct SendPacketSecSesInit {
-    pub header_byte: u8,
-    pub nonce: u32,
-    pub ecdh_pub_key: [u8; 65], 
-    pub device_id: [u8; 6]
-}
-
-impl Display for SendPacketSecSesInit {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "header_byte: {:?}, nonce: {:?}, ecdh_pub_key:{:?}, device_id: {:?}", self.header_byte, self.nonce, self.ecdh_pub_key, self.device_id)
-    }
-}
-
-/* 
- DATA STRUCTS ENROLLMENT
- */
-
-#[derive(Debug, Deserialize)]
-pub struct ReceivePacketFinVeriClean {
-    #[serde(rename = "signature_bytes", with = "BigArray")]
-    pub signature_bytes: [u8; 64],
-    #[serde(rename = "signature_base")]
-    pub signature_base: Vec<u8>,
-    #[serde(rename = "is_verify")]
-    pub is_verify: u8,
-}
-
-impl ReceivePacketFinVeriClean {
-    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, NodeError>{
-        let res = serde_json::from_str(string.as_ref())?;
-        Ok(res)
-    }
-}
-
-pub struct SendPacketFinalVerification {
-    pub header_byte: u8, 
-    pub device_signature: [u8; 64], 
-    pub server_challenge: u32,
-    pub nonce: u32, 
-}
-
-impl Display for SendPacketFinalVerification {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "header_byte: {:?}, device_signature: {:?}, server_challenge:{:?}, nonce: {:?}", self.header_byte, self.device_signature, self.server_challenge, self.nonce)
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ReceivePacketFinVeri {
-    #[serde(rename = "signature_bytes", with = "BigArray")]
-    pub signature_bytes: [u8; 64],
-    #[serde(rename = "signature_base")]
-    pub signature_base: Vec<u8>,
-    #[serde(rename = "server_challenge")]
-    pub server_challenge: u32,
-}
-
-impl ReceivePacketFinVeri{
-    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, NodeError>{
-        let res = serde_json::from_str(string.as_ref())?;
-        Ok(res)
-    }
-}
-
-pub struct SendConfirmationEnrl {
-    pub header_byte: u8, 
-    pub is_valid: u8,
-}
-
-impl Display for SendConfirmationEnrl {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "header_byte: {:?}, is_valid: {:?}", self.is_valid, self.header_byte)
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ReceivePacketInitialEnrl {
-    #[serde(rename= "device_nonce")]
-    pub device_nonce: u32,
-}
-
-impl ReceivePacketInitialEnrl {
-    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, NodeError>{
-        let res = serde_json::from_str(string.as_ref())?;
-        Ok(res)
-    }
-}
-
-
-//Enrollment Packets Struct 
-#[derive(Debug)]
-pub struct SendPacketInitialEnrl {
-    pub header_byte: u8,
-    pub serialized_vkey: [u8; 33],
-    pub dev_mac_add: [u8; 6], 
-    pub device_nonce: u32, 
-}
-
-impl Display for SendPacketInitialEnrl {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "serialized_vkey: {:?}, dev_mac_add: {:?}, device_nonce: {}", self.serialized_vkey, self.dev_mac_add, self.device_nonce)
-    }
-}

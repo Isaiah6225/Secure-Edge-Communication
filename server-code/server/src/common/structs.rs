@@ -29,14 +29,19 @@ use std::{
     io::{Write, ErrorKind},
 };
 use sha2::{Sha256, Digest};
+use aes_gcm::{
+    Tag, Aes128Gcm, KeyInit, AeadInOut, Nonce
+};
+use hkdf::GenericHkdf;
+use hybrid_array::Array;
 /*DEVICE INITIAL DATA STRUCTS*/
 //DeviceStdComm struct (data received from device, second pass)
 #[derive(Debug, Deserialize, Copy, Clone)]
 pub struct DeviceStdComm {
     #[serde(rename = "device_id")]
     pub device_id: [u8; 6],
-    #[serde(rename = "device_pub", with = "BigArray")]
-    pub device_pub: [u8; 65],
+    #[serde(rename = "device_ecdh_pub", with = "BigArray")]
+    pub device_ecdh_pub: [u8; 65],
     #[serde(rename = "nonce")]
     pub nonce: u32 
 }
@@ -85,6 +90,23 @@ impl HeaderByte {
 DEVICE AND SERVER GLOBAL STRUCTS
 */
 #[derive(Debug, Deserialize, Copy, Clone)]
+pub struct SecureKeySetup {
+    #[serde(rename = "encrypted_buf")]
+    pub encrypted_buf: [u8; 19],
+    #[serde(rename = "a_tag")]
+    pub a_tag: [u8; 16],
+    #[serde(rename = "nonce")]
+    pub nonce: [u8; 12]
+}
+
+impl SecureKeySetup {
+    pub fn new<T: AsRef<str>>(string: T) -> Result<Self, ServerError>{
+        let res = serde_json::from_str(string.as_ref())?;
+        Ok(res)
+    }
+}
+
+#[derive(Debug, Deserialize, Copy, Clone)]
 pub struct FinalVeriCleanUp {
     #[serde(rename = "device_signature", with="BigArray")]
     pub device_signature: [u8; 64],
@@ -118,13 +140,10 @@ impl IsValid {
 //payload structs for threads to send to manage_db
 pub struct CheckDevicePayload {
     pub device_id: [u8; 6],
-    pub device_pub: [u8; 33],
 }
 
 pub struct SaveDevicePayload {
     pub device_id: [u8; 6],
-    pub device_pub: [u8; 33],
-    pub nonce: u32,
     pub save_op: DBSave,
 }
 
@@ -154,9 +173,9 @@ impl DBClient {
         Self { db_sender_handle: db_sender_handle }
     }
 
-    pub async fn check_dev_db(&mut self, device_id: &[u8; 6], device_pub: &[u8; 33]) -> Result<(), ServerError> {
+    pub async fn check_dev_db(&mut self, device_id: &[u8; 6]) -> Result<(), ServerError> {
         let (tx, rx) = oneshot::channel();
-        let check_dev_payload = CheckDevicePayload { device_id: *device_id, device_pub: *device_pub };
+        let check_dev_payload = CheckDevicePayload { device_id: *device_id };
         self.db_sender_handle.send(DBOps::CheckDevice(tx, check_dev_payload)).await?;
         match rx.await {
             Ok(res) => {
@@ -170,9 +189,9 @@ impl DBClient {
         }
     }
 
-    pub async fn save_dev_db(&mut self, device_id: &[u8; 6], device_pub: &[u8; 33], nonce: &u32, save_op: DBSave) -> Result<(), ServerError> {
+    pub async fn save_dev_db(&mut self, device_id: &[u8; 6], save_op: DBSave) -> Result<(), ServerError> {
         let (tx, rx) = oneshot::channel();
-        let save_dev_payload = SaveDevicePayload { device_id: *device_id, device_pub: *device_pub, nonce: *nonce, save_op: save_op};
+        let save_dev_payload = SaveDevicePayload { device_id: *device_id, save_op: save_op};
         self.db_sender_handle.send(DBOps::SaveDevice(tx, save_dev_payload)).await?;
         rx.await?
     }
@@ -214,14 +233,14 @@ impl CryptoClient {
     }
 
     //generate ecdh public key from ephemeral secret
-    pub fn gen_ecdh_pub() -> Result<[u8; 65], ServerError> {
+    pub fn gen_ecdh_pub() -> Result<(EphemeralSecret, [u8; 65]), ServerError> {
         let mut ecdh_pub_output = [0u8; 65];
         let secret = EphemeralSecret::generate();
         let pub_key = Sec1Point::from(secret.public_key());
 
         let pub_key_bytes = pub_key.as_bytes();
         ecdh_pub_output.copy_from_slice(pub_key_bytes);
-        Ok(ecdh_pub_output)
+        Ok((secret, ecdh_pub_output))
     }
 
     //generate server challenge
@@ -267,6 +286,36 @@ impl CryptoClient {
         let device_pub = VerifyingKey::from_sec1_bytes(device_pub_bytes)?;
         device_pub.verify(&signature_base_bytes, &device_signature)?;
         Ok(())
+    }
+
+    pub fn gen_session_key(vkey_bytes: &[u8; 65], e_secret: EphemeralSecret, device_ecdh: &[u8; 65], device_id: &[u8; 6]) -> Result<Aes128Gcm, ServerError> {
+        //get shared secret from device public key
+        let device_ecdh_public = PublicKey::from_sec1_bytes(device_ecdh)?;
+        let shared_secret = e_secret.diffie_hellman(&device_ecdh_public);
+        
+        let mut okm = [0u8; 16];
+        let hk: GenericHkdf<_> = shared_secret.extract::<Sha256>(Some(device_id));
+        hk.expand(device_id, &mut okm)?;
+        
+        let cipher = Aes128Gcm::new_from_slice(&okm)?;
+        Ok(cipher)
+    }
+
+    pub fn decrypt_symmetric_final(cipher: &Aes128Gcm, a_tag_slice: &mut [u8], nonce_slice: &[u8; 12], encrypted_buf: &mut [u8], vkey_bytes: &[u8; 65]) -> Result<(), ServerError>{
+        //let nonce = Nonce::try_from(nonce_slice)?;
+        let nonce = Nonce::from_slice(nonce_slice);
+        let a_tag = Tag::from_slice(a_tag_slice);
+        cipher.decrypt_inout_detached(nonce, vkey_bytes, encrypted_buf.into(), &a_tag)?;
+        Ok(())
+    }
+
+    pub fn encrypt_symmetric_final<'a>(cipher: &Aes128Gcm, vkey_bytes: &[u8; 65], data: &'a mut [u8]) -> Result<(Tag, [u8; 12], &'a mut [u8]), ServerError> {
+        let server_nonce = Nonce::generate();
+        let server_a_tag = cipher.encrypt_inout_detached(&server_nonce, vkey_bytes, data.into())?;
+
+        let mut nonce_bytes = [0u8; 12];
+        nonce_bytes.copy_from_slice(server_nonce.as_slice());
+        Ok((server_a_tag, nonce_bytes, data))
     }
 }
 

@@ -3,7 +3,11 @@ use p256::{
     ecdsa::{SigningKey, VerifyingKey},
     elliptic_curve::Generate
 };
-use esp_hal::rng::Trng;
+use log::info;
+use esp_hal::{
+    time::Instant,
+    rng::Trng
+};
 
 pub fn gen_key_pair() -> ([u8; 32], [u8; 33]){
     //unwrap is safe here because trng source is set in main
@@ -12,13 +16,17 @@ pub fn gen_key_pair() -> ([u8; 32], [u8; 33]){
     let mut skey_output = [0u8; 32];
 
     //set and serialize signing key
+    let now = Instant::now();
     let signing_key = SigningKey::generate_from_rng(&mut trng); 
+    let verifying_key = VerifyingKey::from(&signing_key);
+    let duration = now.elapsed();
+    info!("time to compute ecdsa public and private key: {:?}", duration);
+
     let serialized_skey = &signing_key.to_bytes();
     skey_output.copy_from_slice(&serialized_skey);
 
 
     //set and serialize verifying key
-    let verifying_key = VerifyingKey::from(&signing_key);
     let serialized_vkey = VerifyingKey::to_sec1_point(&verifying_key, true);
 
     //convert s_vkey to byte array as_bytes returns &[u8]

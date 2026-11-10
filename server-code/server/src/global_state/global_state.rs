@@ -36,10 +36,16 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
 
     //complete enrollment checks
     println!("[manage_enrollment] starting enrollment checks");
+
     //enrollment_time::check_window()?;
     check_device_id::check_id(&data_parsed.device_id)?;
-    db_client.check_dev_db(&data_parsed.device_id, &data_parsed.device_pub).await?;
-    db_client.save_dev_db(&data_parsed.device_id, &data_parsed.device_pub, &data_parsed.nonce, DBSave::Pending).await?;
+
+    db_client.check_dev_db(&data_parsed.device_id).await?;
+    db_client.save_dev_db(&data_parsed.device_id, DBSave::Pending).await?;
+    Ok(())
+}
+    
+    /*
     
     //complete enrollment cryptography (server_challenge)
     println!("[manage_enrollment] completing initial enrollment cryptography");
@@ -109,10 +115,17 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     println!("[manage_enrollment] final verification clean up write length: {:?}", init_send_buffer.len());
     stream.try_write(init_send_buffer.as_bytes())?;
     init_send_buffer.clear();
+    
+    Ok(())
+}
+*/
+
+pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: DeviceStdComm, mut db_client: DBClient) -> Result<(), ServerError> {
+    println!("testing 123");
     Ok(())
 }
 
-pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: DeviceStdComm, mut db_client: DBClient) -> Result<(), ServerError> {
+/*
     let mut session_send_buffer = HVec::<u8, 2048>::new();
 
     //set up crypto client
@@ -137,22 +150,20 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
         println!("[manage_enrollment] error from write {:?}", e); 
     };
 
-    println!("[manage_enrollment] initial secure session message length: {:?}", session_send_buffer.len());
-    println!("[manage_enrollment] initial secure session message: {:?}", session_send_buffer);
+    println!("[manage_session] initial secure session message length: {:?}", session_send_buffer.len());
+    println!("[manage_session] initial secure session message: {:?}", session_send_buffer);
     stream.try_write(session_send_buffer.as_mut_slice())?;
     session_send_buffer.clear();
 
-    //read final veri from device 
-    println!("[manage_enrollment] waiting for device response"); 
+    println!("[manage_session] waiting for device response"); 
     let initial_sec_response = network_client.read_data().await?;
-
-    println!("[manage_enrollment] received response with: {:?}", initial_sec_response);
+    println!("[manage_session] received response with: {:?}", initial_sec_response);
     EnrollmentClient::is_valid_enrollment(initial_sec_response)?;
 
     //write init secure sesson 
     let server_pub_key_bytes = crypto_client.gen_pub_key_bytes()?;
-    let server_ecdh_pub = CryptoClient::gen_ecdh_pub()?;
-    let signature_base_session = CryptoClient::gen_sigunature_base_session(&data_parsed.nonce, &server_ecdh_pub, &data_parsed.device_pub, &server_pub_key_bytes)?;
+    let (secret, server_ecdh_pub) = CryptoClient::gen_ecdh_pub()?;
+    let signature_base_session = CryptoClient::gen_sigunature_base_session(&data_parsed.nonce, &server_ecdh_pub, &data_parsed.device_ecdh_pub, &server_pub_key_bytes)?;
 
     let (signature_session, recovery_id) = crypto_client.gen_signature(&signature_base_session)?;
     let signature_bytes_session = &signature_session.to_vec();
@@ -169,14 +180,54 @@ pub async fn manage_standard_communication(mut stream: TcpStream, data_parsed: D
         println!("[manage_enrollment] error from write {:?}", e); 
     };
 
-    println!("[manage_enrollment] initial secure session message length: {:?}", session_send_buffer.len());
-    println!("[manage_enrollment] initial secure session message: {:?}", session_send_buffer);
+    println!("[manage_session] initial secure session message length: {:?}", session_send_buffer.len());
+    println!("[manage_session] initial secure session message: {:?}", session_send_buffer);
     stream.try_write(session_send_buffer.as_mut_slice())?;
     session_send_buffer.clear();
 
-    //read final veri from device 
-    println!("[manage_enrollment] waiting for device response"); 
-    let initial_sec_response = network_client.read_data().await?;
+    println!("[manage_session] waiting for device response"); 
+    let secure_ks = network_client.read_data().await?;
+    let mut secure_ks_parsed = parse_packet::parse_secure_ks(secure_ks)?;
 
+
+    //generate cipher
+    let cipher = CryptoClient::gen_session_key(
+        &server_pub_key_bytes, 
+        secret, 
+        &data_parsed.device_ecdh_pub,
+        &data_parsed.device_id,
+    )?; 
+
+    let mut encrypted_data: &mut [u8] = &mut secure_ks_parsed.encrypted_buf;
+    let mut auth_tag: &mut [u8] = &mut secure_ks_parsed.a_tag;
+
+    //try decrypting the message
+    CryptoClient::decrypt_symmetric_final(&cipher, &mut auth_tag, &secure_ks_parsed.nonce, &mut encrypted_data, &server_pub_key_bytes)?; 
+
+    //try encrypting the message
+    let data_str = "confirmed";
+    let mut data_output = [0u8; 9];
+    data_output.copy_from_slice(&data_str.as_bytes());
+    let mut data: &mut [u8] = &mut data_output;
+
+    let (server_a_tag, nonce, server_encrypted_buf) = CryptoClient::encrypt_symmetric_final(&cipher, &server_pub_key_bytes, data)?;
+
+    //send encrypted message
+    if let Err(e) = write!(
+        session_send_buffer, 
+        r#"{{"server_a_tag": {:?}, "server_nonce": {:?}, "server_encrypted_buf": {:?}}}"#,
+        server_a_tag.as_slice(), nonce, server_encrypted_buf, 
+    ){ 
+        println!("[manage_enrollment] error from write {:?}", e); 
+    };
+
+    println!("[manage_session]  secure communication test send buffer: {:?}", session_send_buffer);
+    stream.try_write(session_send_buffer.as_mut_slice())?;
+    session_send_buffer.clear();
+    
+    //adding await to give device time to read final packet
+    println!("[manage_session] waiting for device response"); 
+    let wait = network_client.read_data().await?;
     Ok(())
 }
+*/

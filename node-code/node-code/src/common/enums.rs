@@ -1,4 +1,4 @@
-use crate::common::structs::SendPacketInitialEnrl;
+use crate::common::data_structs::*;
 
 //states 
 pub enum GlobalStates {
@@ -14,17 +14,6 @@ pub enum ProvisionStatus {
     NotSet, 
 }
 
-//check whether ecc key pair is set.
-pub enum EccStatus {
-    Set,
-    NotSet,
-}
-
-pub enum EnrollmentError {
-    Success, 
-    Error
-}
-
 //wifi config enum
 #[derive(Clone, Debug)]
 pub enum WifiConfigStatus {
@@ -32,36 +21,17 @@ pub enum WifiConfigStatus {
     Down
 }
 
-// send step 
+//sendsteps enum used for gsc to communication with wtc  
 #[derive(Debug)]
-pub enum SendSteps{
-    Enroll(EnrollmentSteps),
-    StdComm(StdCommSteps),
-}
-
-//enrollment sub steps
-#[derive(Debug)]
-pub enum EnrollmentSteps {
-    VerifyKeys,
-    Enrollment([u8; 32], [u8; 33]),
-}
-
-//Standard Communication sub steps 
-#[derive(Debug)]
-pub enum StdCommSteps {
-    StandardCommunication
+pub enum SendSteps {
+    InitialEnrollment(SendPacketInitialEnrl), 
 }
 
 
-//wifi command for Wifi task to communicate with Global state communicator
-pub enum WifiCommand {
-    Failure,
-    Success
+//wifi response for Wifi task to communicate with Global state communicator
+#[derive(Debug, PartialEq)]
+pub enum WifiResponse {
+    InitialEnrollment(ReceivePacketInitialEnrl),
+    Failure 
 }
 
-#[derive(Debug)]
-pub enum WifiData {
-    SendEnrlInitial(SendPacketInitialEnrl),
-    ReceiveEnrl(),
-    Connect, 
-}

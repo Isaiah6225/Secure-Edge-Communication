@@ -6,7 +6,17 @@ use tokio::{
 };
 use strum::AsRefStr;
 use crate::common::{
-    structs::{UpdateDeviceStatusPayload, CheckDevicePayload, SaveDevicePayload, DeviceEnrl, DeviceStdComm, IsValid, FinalVeriCleanUp, IsDeviceVerifiedPayload},
+    structs::{
+        UpdateDeviceStatusPayload, 
+        CheckDevicePayload, 
+        SaveDevicePayload, 
+        DeviceEnrl, 
+        DeviceStdComm, 
+        IsValid, 
+        FinalVeriCleanUp, 
+        IsDeviceVerifiedPayload,
+        SecureKeySetup
+    },
     errors::ServerError,
 };
 
@@ -41,5 +51,6 @@ pub enum ParsedStruct {
     DeviceEnrlParsed(DeviceEnrl),
     DeviceReceiveInitialEnrlParsed(IsValid),
     DeviceStdCommParsed(DeviceStdComm), 
-    DeviceFinalVerificationParsed(FinalVeriCleanUp)
+    DeviceFinalVerificationParsed(FinalVeriCleanUp),
+    DeviceSecureKS(SecureKeySetup)
 }

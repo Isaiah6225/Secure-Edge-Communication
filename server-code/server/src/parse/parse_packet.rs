@@ -1,6 +1,6 @@
 use crate::{
     common::{
-        structs::{HeaderByte, DeviceEnrl, DeviceStdComm, IsValid, FinalVeriCleanUp},
+        structs::{HeaderByte, DeviceEnrl, DeviceStdComm, IsValid, FinalVeriCleanUp, SecureKeySetup},
         errors::ServerError,
         enums::ParsedStruct
     },
@@ -26,7 +26,11 @@ pub fn parse(data: &str) -> Result<ParsedStruct, ServerError> {
         1 => {
             let device_enrl = DeviceStdComm::new(data)?;
             return Ok(ParsedStruct::DeviceStdCommParsed(device_enrl))
-        }, 
+        },
+        113 => {
+            let secure_key_set = SecureKeySetup::new(data)?;
+            return Ok(ParsedStruct::DeviceSecureKS(secure_key_set))
+        },
         _ => return Err(ServerError::MissingHeaderByteErr)
     }
 }
@@ -34,6 +38,15 @@ pub fn parse(data: &str) -> Result<ParsedStruct, ServerError> {
 pub fn parse_final_verification_parsed(parsed_struct: ParsedStruct) -> Result<FinalVeriCleanUp, ServerError> {
     match parsed_struct {
         ParsedStruct::DeviceFinalVerificationParsed(data) => {
+            return Ok(data)
+        },
+        _=> { return Err(ServerError::InvalidStruct) }
+    }
+}
+
+pub fn parse_secure_ks(parsed_struct: ParsedStruct) -> Result<SecureKeySetup, ServerError> {
+    match parsed_struct {
+        ParsedStruct::DeviceSecureKS(data) => {
             return Ok(data)
         },
         _=> { return Err(ServerError::InvalidStruct) }

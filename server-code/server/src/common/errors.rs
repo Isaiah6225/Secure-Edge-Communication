@@ -1,5 +1,6 @@
 use std::{io, env, fmt, fmt::Display};
 use crate::common::enums::DBOps;
+use sha2::digest;
 
 //error enum
 #[derive(Debug)]
@@ -16,6 +17,11 @@ pub enum ServerError {
     ECDSAErr(p256::ecdsa::Error),
     FmtErr(std::fmt::Error),
     ParseStrErr(std::str::Utf8Error),
+    DigestLengthErr(digest::InvalidLength), 
+    HkdfErr(hkdf::InvalidLength),
+    ECCErr(p256::elliptic_curve::Error),
+    AesErr(aes_gcm::Error),
+    InfallibleErr(std::convert::Infallible),
     EnrollmentClosedErr,
     CheckDeviceIDErr,
     MissingHeaderByteErr,
@@ -111,5 +117,35 @@ impl From<std::fmt::Error> for ServerError {
 impl From<std::str::Utf8Error> for ServerError {
     fn from(error: std::str::Utf8Error) -> Self {
         ServerError::ParseStrErr(error)
+    }
+}
+
+impl From<hkdf::InvalidLength> for ServerError {
+    fn from(error: hkdf::InvalidLength) -> Self {
+        ServerError::HkdfErr(error)
+    }
+}
+
+impl From<digest::InvalidLength> for ServerError {
+    fn from(error: digest::InvalidLength) -> Self {
+        ServerError::DigestLengthErr(error)
+    }
+}
+
+impl From<p256::elliptic_curve::Error> for ServerError {
+    fn from(error: p256::elliptic_curve::Error) -> Self {
+        ServerError::ECCErr(error)
+    }
+}
+
+impl From<aes_gcm::Error> for ServerError {
+    fn from(error: aes_gcm::Error) -> Self {
+        ServerError::AesErr(error)
+    }
+}
+
+impl From<std::convert::Infallible> for ServerError {
+    fn from(error: std::convert::Infallible) -> Self {
+        ServerError::InfallibleErr(error)
     }
 }

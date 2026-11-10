@@ -1,15 +1,15 @@
-use crate::common::structs::{SendPacketSecSesInit, SendPacketSecureKS};
+use crate::common::data_structs::{SendPacketSecSesInit, SendPacketSecureKS};
 use log::info;
 use aes_gcm::{Nonce, Tag};
 
 pub fn format_secure_session_init(header_byte: u8, nonce: u32, ecdh_pub_key: &[u8; 65], device_id: [u8; 6]) -> SendPacketSecSesInit {
     let spssi = SendPacketSecSesInit { header_byte: header_byte, nonce: nonce, ecdh_pub_key: *ecdh_pub_key, device_id: device_id };
-    info!("[format_enrollment] initial packet: {}", spssi);
+    info!("[format_secure_session] initial packet: {}", spssi);
     return SendPacketSecSesInit { header_byte: header_byte, nonce: nonce, ecdh_pub_key: *ecdh_pub_key, device_id: device_id }
 }
 
-pub fn format_secure_key_setup<'a>(header_byte: u8, nonce: [u8; 12], a_tag: Tag, encrypted_buf: &'a mut [u8]) -> SendPacketSecureKS<'a> {
+pub fn format_secure_key_setup<'a>(header_byte: u8, nonce: [u8; 12], a_tag: &'a mut [u8], encrypted_buf: &'a mut [u8]) -> SendPacketSecureKS<'a> {
     let spsks = SendPacketSecureKS { header_byte: header_byte, nonce: nonce, a_tag: a_tag, encrypted_buf: encrypted_buf };
-    info!("[format_enrollment] initial packet: {}", spsks);
+    info!("[format_secure_session] initial packet: {}", spsks);
     return SendPacketSecureKS { header_byte: header_byte, nonce: nonce, a_tag: a_tag, encrypted_buf: encrypted_buf }
 }

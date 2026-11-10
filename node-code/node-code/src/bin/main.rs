@@ -17,19 +17,15 @@ use esp_hal::{
     rng::TrngSource,
     rng::Rng,
 };
-/*
-use esp_radio::{
-    Controller
-};
-*/
 use esp_storage::FlashStorage;
 use node_code::{
     mk_static,
     boot::create_nvs_handle,
     global_state::global_state,
     common::{
-        structs::{StorageManager, WifiManager, GSCManager, CryptoClient, net_task},
-        enums::{SendSteps, WifiConfigStatus, WifiCommand},
+        communicators::{GSCManager, WTCManager}, 
+        structs::{StorageManager, WifiManager,  CryptoClient, net_task},
+        enums::{SendSteps, WifiConfigStatus, WifiResponse},
     },
     wifi_task::{wifi_task, wifi_config},
 };
@@ -51,7 +47,7 @@ const WIFI_PASSWORD: &'static str = env!("WIFI_PASSWORD");
 const REMOTE_IP: &'static str = env!("REMOTE_IP");
 
 static GSC: Channel<CriticalSectionRawMutex, SendSteps, 8> = Channel::new();
-static WTC: Channel<CriticalSectionRawMutex, WifiCommand, 8> = Channel::new();
+static WTC: Channel<CriticalSectionRawMutex, WifiResponse, 8> = Channel::new();
 static WC: Watch<CriticalSectionRawMutex, WifiConfigStatus, 1> = Watch::new();
 
 
@@ -101,11 +97,14 @@ async fn main(spawner: Spawner) {
     let ip_address = Ipv4Addr::from_str(REMOTE_IP).expect("failed to parse gateway IP");
 
     //set up TrngSource
-    let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
+    let _trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
 
     //set wifi manager 
-    let wifi_manager = WifiManager::new(stack, trng_source);
+    let wifi_manager = WifiManager::new(stack);
+
+    //set the communicators
     let gsc_manager = GSCManager::new(GSC.sender(), WTC.receiver());
+    let wtc_manager = WTCManager::new(GSC.receiver(), WTC.sender());
 
     //set up NVS partition and handle
     let storage = FlashStorage::new(peripherals.FLASH); 
@@ -122,7 +121,7 @@ async fn main(spawner: Spawner) {
     let sen0 = WC.sender();
     
     spawner.spawn(wifi_config(WIFI_PASSWORD, wifi_controller, sen0).unwrap());
-    spawner.spawn(wifi_task::wifi_task(wifi_manager, GSC.receiver(), WTC.sender(), rcv0, ip_address, crypto_client).unwrap());
+    spawner.spawn(wifi_task::wifi_task(wtc_manager, rcv0, ip_address, wifi_manager).unwrap());
     spawner.spawn(net_task(runner).unwrap());
-    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager, &GSC).unwrap());
+    spawner.spawn(global_state::manage_global_state(storage_manager, gsc_manager, &GSC, crypto_client).unwrap());
 }

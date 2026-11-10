@@ -1,22 +1,27 @@
 use crate::{
-    boot::{check_provision, check_ecdsa_set, gen_ecc, gen_ecdh},
+    nonce::gen_nonce,
+    boot::{
+        check_provision, 
+        check_ecdsa_set, 
+        gen_ecc, 
+        gen_ecdh, 
+        read_id, 
+    },
+    formatter::{format_enrollment},
     common::{
+        communicators::GSCManager, 
         structs::{
             StorageManager,
-            GSCManager, 
             CryptoClient,
+            WifiManager
         },
         enums::{
             GlobalStates,
             ProvisionStatus,
-            EnrollmentSteps,
-            EccStatus,
-            WifiCommand,
-            StdCommSteps,
-            SendSteps
-        }
+            SendSteps,
+            WifiResponse
+       },
     },
-    
 };
 use embassy_sync::{
     channel::Channel,
@@ -30,17 +35,77 @@ pub async fn manage_global_state(
     mut manage_storage: StorageManager<FlashStorage<'static>>, 
     gsc_manager: GSCManager,
     gsc_channel: &'static Channel<CriticalSectionRawMutex, SendSteps, 8>,
+    crypto_client: CryptoClient,
 )
 {
     let mut state = GlobalStates::IsProvisioned;
-    let mut enrollment_steps = EnrollmentSteps::VerifyKeys; 
 
     loop {
+        match state {
+            GlobalStates::IsProvisioned => {
+                let get_pro_flag = manage_storage.get_provision_flag(); 
+                state = GlobalStates::Enrollment
+            }
+
+            GlobalStates::Enrollment => {
+                //VERIFY KEYS
+                info!("[Global State: Enrollment] checking ecc key pair");
+
+                                
+                //nvs call to get key pair
+                let ecdsa_keys = match manage_storage.get_ecdsa() {
+                    Ok((priv_key, pub_key)) => {
+                        info!("[Global State: Enrollment] got keys {:?} and {:?}", priv_key, pub_key);
+                        Ok((priv_key, pub_key))
+                    },
+
+                    Err(e) => {
+                        info!("[Global State: Enrollment] got error when retrieving keys: {:?}", e);
+                        info!("[Global State: Enrollment] setting keys");
+                        state = GlobalStates::IsProvisioned;
+                        Err(e)
+                    }
+                };
+                
+                //check if get_ecdsa returned an error 
+                if let Err(ref e) = ecdsa_keys {
+                    info!("[Global State: Enrollment] keys not set in NVS with error: {:?}", e);
+                    state = GlobalStates::IsProvisioned;
+                };
+
+                let (_ecdsa_priv, ecdsa_pub) = ecdsa_keys.unwrap();
+
+                //INITIAL ENROLLMENT
+                info!("[Global State: Enrollment] sending initial enrollment request");
+
+                let mac = read_id::read_mac();
+                let nonce = gen_nonce::gen_nonce();
+                let init_header_byte = 0;
+                let init_packet = format_enrollment::format_enrollment_initial(init_header_byte, &mac, &nonce);
+                
+                //send and receive initial enrollment
+                gsc_manager.send_initial_enrollment(SendSteps::InitialEnrollment(init_packet)).await;
+                let initial_enrollment_recv = gsc_manager.receive_initial_enrollment().await;
+
+                if initial_enrollment_recv == WifiResponse::Failure {
+                    info!("[Global State: Enrollment] wifi task returned WifiResponse Failure.");
+                    state = GlobalStates::IsProvisioned;
+                }; 
+
+                info!("{:?}", initial_enrollment_recv);
+            }
+
+            GlobalStates::StandardComm => {
+                info!("something to go here");
+            }
+        } 
+    }
+}
+        /*
         match state {
             //provisioing check
             GlobalStates::IsProvisioned => {
                 info!("[Global State: IsProvisioned]");
-
 
                 //get provisioning flag and move to the standard comm or enrollment
                 let get_pro_flag = manage_storage.get_provision_flag();
@@ -85,7 +150,7 @@ pub async fn manage_global_state(
                             //check to see if the key pair was set properly
                             match check_ecdsa_set(get_ecc_keys) {
                                 EccStatus::Set => {
-                                    info!("[Global State: EccStatus::Set] Ecc key pair is set whoo");
+                                    info!("[Global State: EccStatus::Set] Ecc key pair is set");
                                 } 
 
                                 EccStatus::NotSet => {
@@ -160,5 +225,7 @@ pub async fn manage_global_state(
                 }
             }            
         }
+        
     }
 }
+*/
