@@ -30,25 +30,23 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-# Drop privileges for runtime.
-USER appuser
+WORKDIR /app/src 
 
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
 COPY .cargo/config.toml ./.cargo/config.toml
-
-ENV IP=0.0.0.0:7979
-
-# Expose the port that the application listens on.
-EXPOSE 7979 
-
-WORKDIR /app/src 
-
-RUN chown appuser /app/src
-
 COPY priv_key.pem /app/src
 COPY pub_key.pem /app/src
 COPY device_registry.db /app/src
+
+RUN chown -R appuser:appuser /app && \
+    chmod 600 /app/src/priv_key.pem && \
+    chmod 644 /app/src/pub_key.pem
+
+USER appuser
+
+ENV IP=0.0.0.0:7979
+EXPOSE 7979 
 
 # What the container should run when it is started.
 CMD ["/bin/server"]
