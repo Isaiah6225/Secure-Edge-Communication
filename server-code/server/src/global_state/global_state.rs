@@ -1,4 +1,5 @@
 use crate::{
+    format_signature_data,
     parse::parse_packet,
     common::{
         structs::{DeviceStdComm, DeviceEnrl, DBClient, CryptoClient, NetworkClient, EnrollmentClient},
@@ -19,8 +20,8 @@ use p256::{
 };
 use heapless::{Vec as HVec, String};
 use std::{
-    fmt::Write,
-    io::Read,
+    fmt::Write as FmtWrite,
+    io::{Write, Read},
 };
 
 pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut db_client: DBClient) -> Result<(), ServerError>{
@@ -34,6 +35,10 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     println!("[manage_enrollment] setting up network client");
     let network_client = NetworkClient::new(&stream); 
 
+    //set signature base  and send buffers 
+    let mut signature_base = Vec::new();
+    let mut send_buffer = String::<2048>::new();
+
     //complete enrollment checks
     println!("[manage_enrollment] starting enrollment checks");
 
@@ -42,11 +47,33 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
 
     db_client.check_dev_db(&data_parsed.device_id).await?;
     db_client.save_dev_db(&data_parsed.device_id, DBSave::Pending).await?;
+
+    //respond initial enrollment
+    let server_challenge = CryptoClient::gen_server_challenge()?;
+    format_signature_data!(&mut signature_base, &server_challenge, &data_parsed.device_id, &data_parsed.nonce);
+    let (init_signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
+
+    //write 
+    if let Err(e) = write!(
+        send_buffer,
+        r#"{{"signature": {:?}, "signature_base": {:?}, "server_challenge": {:?}, "device_nonce": {:?}}}"#,
+        init_signature, &signature_base, server_challenge, &data_parsed.nonce
+    ){
+        println!("[manage_enrollment] error from write {:?}", e);
+    };
+    println!("[manage_enrollment] init_send_buffer: {:?}", send_buffer);
+    stream.try_write(send_buffer.as_bytes())?;
+    send_buffer.clear();
+    signature_base.clear();
+
+    //final verification
+    println!("[manage_enrollment] waiting for device response"); 
+    let final_veri = network_client.read_data().await?;
+    println!("[manage_enrollment] received response with: {:?}", final_veri); 
     Ok(())
 }
     
     /*
-    
     //complete enrollment cryptography (server_challenge)
     println!("[manage_enrollment] completing initial enrollment cryptography");
 
