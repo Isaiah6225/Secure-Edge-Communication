@@ -6,7 +6,7 @@ use core::{
     fmt, 
     fmt::Display
 };
-
+use embassy_net::tcp::ConnectError;
 use sha2::digest;
 
 
@@ -23,6 +23,10 @@ pub enum NodeError {
     DigestLengthErr(digest::InvalidLength), 
     HkdfErr(hkdf::InvalidLength),
     ECCErr(p256::elliptic_curve::Error),
+    TCPConnectErr(ConnectError),
+    UTFErr(core::str::Utf8Error),
+    TCPErr(embassy_net::tcp::Error),
+    WriteErr(core::fmt::Error),
 }
 
 impl Display for NodeError{
@@ -32,6 +36,30 @@ impl Display for NodeError{
             NodeError::FinalVerificationCleanUpErr => write!(f, "server return final verification failed"), 
             _=> Ok(())
         }
+    }
+}
+
+impl From<core::fmt::Error> for NodeError {
+    fn from(error: core::fmt::Error) -> Self {
+        NodeError::WriteErr(error)
+    }
+}
+
+impl From<embassy_net::tcp::Error> for NodeError {
+    fn from(error: embassy_net::tcp::Error) -> Self {
+        NodeError::TCPErr(error)
+    }
+}
+
+impl From<core::str::Utf8Error> for NodeError {
+    fn from(error: core::str::Utf8Error) -> Self {
+        NodeError::UTFErr(error)
+    }
+}
+
+impl From<ConnectError> for NodeError {
+    fn from(error: ConnectError) -> Self {
+        NodeError::TCPConnectErr(error)
     }
 }
 

@@ -52,12 +52,13 @@ pub async fn manage_enrollment(stream: TcpStream, data_parsed: DeviceEnrl, mut d
     let server_challenge = CryptoClient::gen_server_challenge()?;
     format_signature_data!(&mut signature_base, &server_challenge, &data_parsed.device_id, &data_parsed.nonce);
     let (init_signature, recovery_id) = crypto_client.gen_signature(&signature_base)?;
+    let init_signature_bytes = &init_signature.to_vec();
 
     //write 
     if let Err(e) = write!(
         send_buffer,
         r#"{{"signature": {:?}, "signature_base": {:?}, "server_challenge": {:?}, "device_nonce": {:?}}}"#,
-        init_signature, &signature_base, server_challenge, &data_parsed.nonce
+        init_signature_bytes, &signature_base, server_challenge, &data_parsed.nonce
     ){
         println!("[manage_enrollment] error from write {:?}", e);
     };

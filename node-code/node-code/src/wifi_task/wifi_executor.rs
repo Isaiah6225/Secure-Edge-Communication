@@ -1,0 +1,493 @@
+use heapless::String;
+use core::fmt::Write;
+use log::info;
+use embassy_time::{Duration, Timer};
+use embassy_net::{
+    IpEndpoint,
+    IpAddress,
+    Ipv4Address,
+    tcp::TcpSocket,
+};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::watch::Receiver as ReceiverWatch;
+use crate::{
+    common::{
+        communicators::WTCManager,
+        structs::WifiManager,
+        enums::{SendSteps, WifiConfigStatus, WifiResponse},
+        data_structs::*,
+        error::NodeError,
+    },
+};
+
+
+
+pub async fn wifi_executor(wtc_communicator: &WTCManager, manage_wifi: &WifiManager, ip_address: Ipv4Address) -> Result<(), NodeError> {
+    //set socket buffers and setting write retry count
+    let mut rx_buffer = [0; 4096];
+    let mut tx_buffer = [0; 1536];
+
+    let mut read_buffer = [0; 4096];
+    let mut send_buffer = String::<1024>::new();
+
+    //receive the state from global state communicator (GSC)
+    let state = wtc_communicator.receive_initial_enrollment().await;
+    info!("[wifi_executor] state: {:?}", state);
+    'session: loop {
+        match state {
+            SendSteps::InitialEnrollment(ref init_packet) => {
+                //create socket with buffers
+                let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
+                tcp_socket.set_timeout(Some(Duration::from_secs(10)));
+
+                //connect to endpoint
+                info!("[wifi_executor] trying to connect to remote endpoint");
+                let response = tcp_socket.connect(
+                    IpEndpoint{
+                        addr: IpAddress::Ipv4(ip_address),
+                        port:7979,
+                    }
+                ).await?;
+
+                //write packet to buffer
+                write!(
+                    send_buffer, 
+                    r#"{{"header_byte": {:?}, "device_id": {:?}, "nonce": {:?}}}"#,
+                    init_packet.header_byte, init_packet.dev_mac_add, init_packet.dev_nonce
+                )?;
+                
+                //retry sending initial enrollment data three times
+                info!("[wifi_executor] writing packet to remote server");
+                WifiManager::retry_send_3(&send_buffer, &mut tcp_socket).await;
+
+                //read initial packet from remote server
+                tcp_socket.wait_read_ready().await;
+                let initial_read = tcp_socket.read(&mut read_buffer).await?;
+                
+                //convert read initial packet to string
+                let initial_read_data = &read_buffer[..initial_read];
+                let initial_read_str = core::str::from_utf8(initial_read_data)?;
+
+                //parse packet initial packet 
+                let parsed_initial_read = ReceivePacketInitialEnrl::new(initial_read_str)?;
+                info!("[wifi_executor] parsed_initial_read: {:?}", parsed_initial_read);
+            }
+        }
+    }
+}
+
+
+             /*
+                            INITIAL SEND
+
+                            info!("[wifi_task EnrollmentSteps::Enrollment]"); 
+
+                            //create socket with buffers
+                            let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
+                            tcp_socket.set_timeout(Some(Duration::from_secs(10)));
+
+                            //format initial packet 
+                            let init_packet = WifiManager::gen_enrollment_initial(ecdsa_pub_key); 
+                            info!("[wifi_task EnrollmentSteps::Initial] created init packet: {:?}", init_packet);
+
+                            //connect to endpoint
+                            info!("[wifi_task] EnrollmentSteps::Initial] trying to connect to remote endpoint");
+                            let response = tcp_socket.connect(
+                                IpEndpoint{
+                                    addr: IpAddress::Ipv4(ip_address),
+                                    port:7979,
+                                }
+                            ).await;
+                             
+                            //handle error in case of connect error 
+                            if let Err(e) = response {
+                                info!("[wifi_task] EnrollmentSteps::Initial] error from socket connect: {e:?}");
+                                info!("[wifi_task] EnrollmentSteps::Initial] sending response to GSC to retry EnrollmentSteps::Initial");
+                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                break 'session;
+                            }
+
+                            //start initial send 
+                            info!("[wifi_task] EnrollmentSteps::Initial] remote endpoint successfully connected to moving to send packet");
+                            'initial_send: loop {
+                                info!("[wifi_task] EnrollmentSteps::Initial] write retry count before entering if statement: {}", write_retry_count);
+                                //check write retry_count
+                                if write_retry_count < 3 {
+                                    let mut init_send_buffer = String::<512>::new();
+                                    info!("[wifi_task] EnrollmentSteps::Initial] created buffer to send data to remote server");
+
+                                    if let Ok(_) = write!(
+                                        init_send_buffer,
+                                        r#"{{"device_id": {:?}, "device_pub": {:?}, "nonce": {}, "header_byte": {}}}"#,
+                                        init_packet.dev_mac_add, init_packet.serialized_vkey, init_packet.device_nonce, init_packet.header_byte
+                                    ) {
+                                        info!("[wifi_task] EnrollmentSteps::Initial] successfully wrote data to buffer");
+                                        info!("[wifi_task] EnrollmentSteps::Initial] buffer: {:?}", init_send_buffer);
+                                        let init_request = tcp_socket.write(init_send_buffer.as_bytes()).await;
+
+                                        if let Err(e) = init_request {
+                                            info!("[wifi_task] EnrollmentSteps::Initial] buffer failed to create with: {e:?}. Retrying the buffer creation to send");
+                                            write_retry_count += 1;
+                                            info!("[wifi_task] EnrollmentSteps::Initial] write retry count: {}", write_retry_count);
+                                        } else {
+                                            info!("[wifi_task] EnrollmentSteps::Initial] successfully sent written buffer and keeping buffer alive");
+                                            break 'initial_send; 
+                                        }
+                                    } else {
+                                        info!("[wifi_task] EnrollmentSteps::Initial] write failed procing write retry count: {}", write_retry_count);
+                                        write_retry_count += 1;
+                                    }
+                                } else {
+                                    info!("[wifi_task EnrollmentSteps::Initial] write failed after 3 attempts. sending failure response to GSC to retry EnrollmentSteps::Enrollment");
+                                    write_retry_count = 0;
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    tcp_socket.close();
+                                    break 'session;
+                                }
+                            }
+                            
+                            /*
+                             Initial Read
+                            */
+                            info!("[wifi_task EnrollmentSteps::InitalRead] awaitng bytes in rx buf");
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task EnrollmentSteps::InitialRead] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketInitialEnrl::new(s);
+                                        info!("[wifi_task EnrollmentSteps::InitialRead] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(data) => {
+                                                info!("{:?}", init_packet.device_nonce);
+                                                let compare_result = CryptoClient::compare_nonce(&init_packet.device_nonce, &data.device_nonce);
+                                                let init_read = WifiManager::gen_enrollment_initial_confirmation(compare_result); 
+                                                let mut init_send_conf= String::<128>::new();
+                                                if let Err(e) = write!(
+                                                    init_send_conf,
+                                                    r#"{{"header_byte": {:?}, "is_valid": {:?}}}"#,
+                                                    init_read.header_byte, init_read.is_valid
+                                                ){
+                                                    info!("[wifi_task EnrollmentSteps::InitialRead] error from write {:?}", e);
+                                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                };
+                                                info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server: {:?}", init_send_conf);
+                                                tcp_socket.write(init_send_conf.as_bytes()).await;
+                                            }
+                                            Err(e) => {
+                                                info!("[wifi_task EnrollmentSteps::InitialRead] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                Err(e) => {
+                                    info!("[wifi_task EnrollmentSteps::InitialRead] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
+                                }
+                            }
+
+                            /*
+                            FINAL VERIFICATION READ 
+                            */
+                            WifiManager::clear_buffer(&mut read_buffer);
+                            info!("[wifi_task EnrollmentSteps::FinalVerification] awaiting bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] length of read_buffer: {:?}", read_buffer.len()); 
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task EnrollmentSteps::FinalVerification] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketFinVeri::new(s);
+                                        info!("[wifi_task EnrollmentSteps::FinalVerification] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(data) => {
+                                                info!("[wifi_task EnrollmentSteps::FinalVerification] received data from server yipee");
+                                                crypto_client.check_server_signature(&data.signature_bytes, &data.signature_base).expect("server verification failed");
+                                                match CryptoClient::sign_server_challenge(&data.server_challenge, &ecdsa_priv_key) {
+                                                    Ok(signature_bytes) => {
+                                                        let final_send = WifiManager::gen_enrollment_final(data.server_challenge, signature_bytes); 
+                                                        let mut init_send_conf= String::<786>::new();
+                                                        if let Err(e) = write!(
+                                                            init_send_conf,
+                                                            r#"{{"header_byte": {:?}, "device_signature": {:?}, "server_challenge": {:?}, "nonce": {:?}}}"#,
+                                                            final_send.header_byte, final_send.device_signature, final_send.server_challenge, final_send.nonce
+                                                        ){
+                                                            info!("[wifi_task EnrollmentSteps::InitialRead] error from write {:?}", e);
+                                                            wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                        };
+                                                        info!("[wifi_task EnrollmentSteps::InitialRead] sending data back to server: {:?}", init_send_conf);
+                                                        tcp_socket.write(init_send_conf.as_bytes()).await;
+                                                    },
+                                                    Err(e) => {
+                                                        info!("[wifi_task EnrollmentSteps::FinalVerification] failed to sign server challenge with: {:?}", e);
+                                                        wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                    }
+                                                };
+                                            }
+                                            Err(e) => {
+                                                info!("[wifi_task EnrollmentSteps::FinalVerification] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Err(e) => {
+                                    info!("[wifi_task EnrollmentSteps::FinalVerification] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                }
+                            }
+
+
+                            /*
+                             FINAL VERIFICATION CLEAN UP
+                             */
+                            WifiManager::clear_buffer(&mut read_buffer);
+                            info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] awaiting bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketFinVeriClean::new(s);
+                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(data) => {
+                                                info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] received data from server yipee");
+                                                crypto_client.check_server_signature(&data.signature_bytes, &data.signature_base).expect("server verification failed");
+                                                match CryptoClient::is_verify(&data.is_verify) {
+                                                    Ok(()) => {
+                                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] success!");
+                                                        wtc_sender_handle.send(WifiCommand::Success).await;
+                                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] break main loop");
+                                                        break 'session;
+                                                    },
+                                                    Err(e) => {
+                                                        info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] failed to parse data with : {:?}", e);
+                                                        wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                    }
+                                                };  
+                                            }
+                                            Err(e) => {
+                                                info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Err(e) => {
+                                    info!("[wifi_task EnrollmentSteps::FinalVerificationCleanUp] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                }
+                            }
+                        }
+                        SendSteps::Enroll(EnrollmentSteps::VerifyKeys) => todo!(),
+                        SendSteps::StdComm(StdCommSteps::StandardCommunication) => {
+                            let (secret, ecdh_pub_key) = gen_ecdh::gen_ecdh_pub();
+
+                            info!("[wifi_task SecureSession::Initial]"); 
+                            //create socket with buffers
+                            let mut tcp_socket = TcpSocket::new(manage_wifi.stack, &mut rx_buffer, &mut tx_buffer);
+                            tcp_socket.set_timeout(Some(Duration::from_secs(10)));
+
+                            //format initial packet 
+                            let std_init_packet = WifiManager::gen_secure_session_init(&ecdh_pub_key); 
+                            info!("[wifi_task SecureSession::Initial] created init packet: {:?}", std_init_packet);
+
+                            //connect to endpoint
+                            info!("[wifi_task] SecureSession::Initial] trying to connect to remote endpoint");
+                            let response = tcp_socket.connect(
+                                IpEndpoint{
+                                    addr: IpAddress::Ipv4(ip_address),
+                                    port:7979,
+                                }
+                            ).await;
+                             
+                            //handle error in case of connect error 
+                            if let Err(e) = response {
+                                info!("[wifi_task] SecureSession::Initial] error from socket connect: {e:?}");
+                                info!("[wifi_task] SecureSession::Initial] sending response to GSC to retry SecureSession::Initial");
+                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                break 'session;
+                            }
+
+                            info!("[wifi_task] SecureSession::Initial] remote endpoint successfully connected to moving to send packet");
+                            'initial_send: loop {
+                                info!("[wifi_task] SecureSession::Initial] write retry count before entering if statement: {}", write_retry_count);
+                                //check write retry_count
+                                if write_retry_count < 3 {
+                                    let mut init_send_buffer = String::<512>::new();
+                                    info!("[wifi_task] SecureSession::Initial] created buffer to send data to remote server");
+
+                                    if let Ok(_) = write!(
+                                        init_send_buffer,
+                                        r#"{{"header_byte": {:?}, "nonce": {:?}, "device_id": {:?}, "device_ecdh_pub": {:?}}}"#,
+                                        std_init_packet.header_byte, std_init_packet.nonce, std_init_packet.device_id, std_init_packet.ecdh_pub_key
+                                    ) {
+                                        info!("[wifi_task] SecureSession::Initial] successfully wrote data to buffer");
+                                        info!("[wifi_task] SecureSession::Initial] buffer: {:?}", init_send_buffer);
+                                        let std_init_request = tcp_socket.write(init_send_buffer.as_bytes()).await;
+
+                                        if let Err(e) = std_init_request {
+                                            info!("[wifi_task] SecureSession::Initial] buffer failed to create with: {e:?}. Retrying the buffer creation to send");
+                                            write_retry_count += 1;
+                                            info!("[wifi_task] SecureSession::Initial] write retry count: {}", write_retry_count);
+                                        } else {
+                                            info!("[wifi_task] SecureSession::Initial] successfully sent written buffer and keeping buffer alive");
+                                            break 'initial_send; 
+                                        }
+                                    } else {
+                                        info!("[wifi_task] SecureSession::Initial] write failed procing write retry count: {}", write_retry_count);
+                                        write_retry_count += 1;
+                                    }
+                                } else {
+                                    info!("[wifi_task SecureSession::Initial] write failed after 3 attempts. sending failure response to GSC to retry EnrollmentSteps::Enrollment");
+                                    write_retry_count = 0;
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
+                                }
+                            }
+                            /*
+                             Secure Session Init Read
+                            */
+                            info!("[wifi_task SecureSession::InitalRead] awaitng bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task SecureSession::InitialRead] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketInitialEnrl::new(s);
+                                        info!("[wifi_task SecureSession::InitialRead] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(data) => {
+                                                info!("{:?}", std_init_packet.nonce);
+                                                let compare_result = CryptoClient::compare_nonce(&std_init_packet.nonce, &data.device_nonce);
+                                                let init_read = WifiManager::gen_enrollment_initial_confirmation(compare_result); 
+                                                let mut init_send_conf= String::<128>::new();
+                                                if let Err(e) = write!(
+                                                    init_send_conf,
+                                                    r#"{{"header_byte": {:?}, "is_valid": {:?}}}"#,
+                                                    init_read.header_byte, init_read.is_valid
+                                                ){
+                                                    info!("[wifi_task SecureSession::InitialRead] error from write {:?}", e);
+                                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                };
+                                                info!("[wifi_task SecureSession::InitialRead] sending data back to server: {:?}", init_send_conf);
+                                                tcp_socket.write(init_send_conf.as_bytes()).await;
+                                            }
+                                            Err(e) => {
+                                                info!("[wifi_task SecureSession::InitialRead] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                Err(e) => {
+                                    info!("[wifi_task SecureSession::InitialRead] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
+                                }
+                            }
+
+                            info!("[wifi_task SecureSession::InitalRead] awaitng bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task SecureSession::InitialRead] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketSecSesInit::new(s);
+                                        info!("[wifi_task SecureSession::InitialRead] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(received_data) => {
+                                                info!("[wifi_task SecureSession::InitialRead] checking signature and sesion key");
+                                                let mut data_str = "verify this message";
+                                                let mut data_output = [0u8; 19];
+                                                data_output.copy_from_slice(&data_str.as_bytes());
+
+                                                let mut data: &mut [u8] = &mut data_output;
+                                                crypto_client.check_server_signature(&received_data.signature_bytes, &received_data.signature_base).expect("server verification failed");
+                                                match crypto_client.gen_session_key(secret, &received_data.server_ecdh_pub, &mut data) {
+                                                    Ok((mut a_tag, buf, nonce)) => {
+                                                        let a_tag_slice = a_tag.as_mut_slice();
+                                                        let sks_data = WifiManager::gen_secure_key_setup(a_tag_slice, nonce, buf); 
+                                                        let mut init_sks = String::<512>::new();
+
+                                                        if let Err(e) = write!(
+                                                            init_sks,
+                                                            r#"{{"header_byte": {:?}, "nonce": {:?}, "a_tag": {:?}, "encrypted_buf": {:?}}}"#,
+                                                            sks_data.header_byte, sks_data.nonce, sks_data.a_tag, sks_data.encrypted_buf
+                                                        ){
+                                                            info!("[wifi_task SecureSession::InitialRead] error from write {:?}", e);
+                                                            wtc_sender_handle.send(WifiCommand::Failure).await;
+                                                        };
+
+                                                        info!("[wifi_task SecureSession::InitialRead] sending data back to server: {:?}", init_sks);
+                                                        tcp_socket.write(init_sks.as_bytes()).await;
+                                                    }, 
+                                                    Err(e) => {
+                                                        info!("[wifi_task SecureSession::InitialRead] failed to parse data with : {:?}", e);
+
+                                                    },
+                                                }; 
+                                            }
+
+                                            Err(e) => {
+                                                info!("[wifi_task SecureSession::InitialRead] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                Err(e) => {
+                                    info!("[wifi_task SecureSession::InitialRead] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
+                                }
+                            }
+                            
+                            info!("[wifi_task SecureSession::FinalRead] awaitng bytes in rx buf");
+                            tcp_socket.wait_read_ready().await;
+                            match tcp_socket.read(&mut read_buffer).await {
+                                Ok(len) => {
+                                    let received_data = &read_buffer[..len];
+                                    if let Ok(s) = core::str::from_utf8(received_data) {
+                                        info!("[wifi_task SecureSession::FinalRead] received data from remote server with {:?}", s); 
+                                        let parsed_receive_data = ReceivePacketSecSesInit::new(s);
+                                        info!("[wifi_task SecureSession::FinalRead] parsed_data {:?}", parsed_receive_data);
+                                        match parsed_receive_data {
+                                            Ok(received_data) => {
+                                                info!("{:?}", init_sks); 
+                                            }
+
+                                            Err(e) => {
+                                                info!("[wifi_task SecureSession::InitialRead] failed to parse data with : {:?}", e);
+                                                wtc_sender_handle.send(WifiCommand::Failure).await;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Err(e) => {
+                                    info!("[wifi_task SecureSession::InitialRead] read error sending failure to GSC: {:?}", e);
+                                    wtc_sender_handle.send(WifiCommand::Failure).await;
+                                    break 'session;
+                                }
+                            };
+                        }
+                    }
+                    
+                }
+            }
+            */
+            
+

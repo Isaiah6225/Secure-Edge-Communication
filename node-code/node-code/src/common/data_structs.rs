@@ -94,7 +94,7 @@ impl Display for SendPacketFinalVerification {
 
 #[derive(Debug, Deserialize)]
 pub struct ReceivePacketFinVeri {
-    #[serde(rename = "signature_bytes", with = "BigArray")]
+    #[serde(rename = "signature", with = "BigArray")]
     pub signature_bytes: [u8; 64],
     #[serde(rename = "signature_base")]
     pub signature_base: Vec<u8>,
@@ -122,8 +122,14 @@ impl Display for SendConfirmationEnrl {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct ReceivePacketInitialEnrl {
-    #[serde(rename= "device_nonce")]
+    #[serde(rename = "device_nonce")]
     pub device_nonce: u32,
+    #[serde(rename = "signature", with = "BigArray")]
+    pub signature_bytes: [u8; 64],
+    #[serde(rename = "signature_base", with = "BigArray")]
+    pub signature_base: [u8; 72],
+    #[serde(rename = "server_challenge")]
+    pub server_challenge: u32,
 }
 
 impl ReceivePacketInitialEnrl {
